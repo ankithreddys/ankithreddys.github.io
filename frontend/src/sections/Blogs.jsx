@@ -29,16 +29,17 @@ function Blogs() {
         <div className="blogs-list" aria-label="Blogs list">
           <article className="blogs-card">
             <header className="blog-post-header">
-              <p className="blog-post-meta">Interactive visualizer · Medium article coming soon</p>
-              <h3 className="blog-post-title">Text Embedding Model Training: A 3D Explorer</h3>
+              <p className="blog-post-meta">New article · Interactive 3D visualizer</p>
+              <h3 className="blog-post-title">From Raw Text to the Unit Hypersphere: Building and Visualizing a Modern Text Embedding Model from Scratch</h3>
               <p className="blog-post-excerpt">
-                Explore how token and positional embeddings move through multi-head attention,
-                encoder layers, masked mean pooling, and contrastive training on the unit sphere.
+                How does a text embedding model learn without a target vector? Follow raw text
+                through the embedding pipeline, then see contrastive learning pull related sentences
+                together and push unrelated ones apart on the unit hypersphere.
               </p>
               <div className="blog-post-tags" aria-label="Post tags">
-                <span className="blog-tag">Embeddings</span>
-                <span className="blog-tag">Transformers</span>
+                <span className="blog-tag">Text Embeddings</span>
                 <span className="blog-tag">Contrastive Learning</span>
+                <span className="blog-tag">Interactive 3D</span>
               </div>
             </header>
 
