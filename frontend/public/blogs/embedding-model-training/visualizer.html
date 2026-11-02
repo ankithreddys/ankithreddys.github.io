@@ -1,0 +1,2097 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D TextEmbeddingModel Architecture & Tensor Geometry Visualizer</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js r128 & OrbitControls -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <!-- KaTeX 0.16.9 for mathematical rendering -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #050811;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+        }
+        .mono {
+            font-family: 'JetBrains Mono', monospace;
+        }
+        #canvas-container {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        .glass-panel {
+            background: rgba(10, 15, 29, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(56, 189, 248, 0.22);
+            box-shadow: 0 16px 36px -4px rgba(0, 0, 0, 0.78);
+        }
+        #labels-container {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            z-index: 5;
+            overflow: hidden;
+        }
+        .floating-label {
+            position: absolute;
+            transform: translate(-50%, -50%);
+            pointer-events: auto;
+            cursor: pointer;
+            transition: opacity 0.2s ease, transform 0.15s ease;
+            white-space: nowrap;
+        }
+        .floating-label:hover {
+            transform: translate(-50%, -55%) scale(1.06);
+            z-index: 20;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(56, 189, 248, 0.35);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(56, 189, 248, 0.6);
+        }
+        .stage-btn.active {
+            background: linear-gradient(135deg, rgba(14, 165, 233, 0.42), rgba(99, 102, 241, 0.42));
+            border-color: #38bdf8;
+            color: #ffffff;
+            box-shadow: 0 0 15px rgba(56, 189, 248, 0.35);
+        }
+        .code-highlight {
+            background: rgba(56, 189, 248, 0.15);
+            border-left: 3px solid #38bdf8;
+            display: block;
+            margin: 0 -12px;
+            padding: 2px 12px;
+        }
+        .katex-display {
+            margin: 0.35em 0 !important;
+            overflow-x: auto;
+            overflow-y: hidden;
+            padding: 4px 2px;
+        }
+        .katex {
+            font-size: 1.0em;
+            color: #e0e7ff;
+        }
+        #raycast-tooltip {
+            position: fixed;
+            pointer-events: none;
+            z-index: 50;
+            transition: opacity 0.12s ease;
+            opacity: 0;
+        }
+        #controls-panel,
+        #inspector-panel {
+            top: var(--panel-top, 80px);
+        }
+        @media (max-width: 1023px) {
+            #controls-panel.panel-open,
+            #inspector-panel.panel-open {
+                display: flex !important;
+            }
+        }
+        @media (max-width: 640px) {
+            footer {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen overflow-hidden select-none">
+
+    <!-- WebGL 3D Canvas Container -->
+    <div id="canvas-container"></div>
+
+    <!-- Floating 3D Stage & Batch Block Labels -->
+    <div id="labels-container"></div>
+
+    <!-- 3D Raycast Hover Tooltip -->
+    <div id="raycast-tooltip" class="glass-panel px-3 py-2 rounded-lg border border-sky-400/60 shadow-2xl text-xs">
+        <div id="tooltip-title" class="font-bold text-sky-300 mono">Batch b=0 · Block s=0</div>
+        <div id="tooltip-details" class="text-[11px] text-slate-200 mono mt-0.5">Slice: Tensor[0, 0, 0:128]</div>
+        <div id="tooltip-sub" class="text-[10px] text-emerald-300 mono mt-0.5">Status: Active (mask=1)</div>
+    </div>
+
+    <!-- TOP NAVIGATION & STAGE TOUR BAR -->
+    <header id="tour-header" class="relative z-20 flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 m-3 rounded-xl glass-panel">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center justify-center w-9 h-9 rounded-lg bg-sky-500/20 border border-sky-400/40 text-sky-400 font-bold mono text-sm shadow-inner">
+                B×S×D
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <h1 class="text-sm md:text-base font-bold tracking-tight text-white">TextEmbeddingModel 3D Explorer</h1>
+                    <span id="header-hierarchy-pill" class="hidden sm:inline-block px-2 py-0.5 text-[11px] font-semibold rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 mono">
+                        Embed [B,S,128] → 4-Head Attention → 3× FFN → Mean Pool → L2 Norm [B,128]
+                    </span>
+                </div>
+                <p class="text-[11px] text-slate-400 mono">
+                    vocab=<span class="text-sky-300">1000</span> · B=<span id="header-b-val" class="text-amber-300 font-bold">3</span> · S=<span class="text-sky-300 font-bold">32</span> (<span id="header-s-val" class="text-emerald-300">8</span> shown) · d_model=<span class="text-sky-300">128</span> · n_heads=<span class="text-cyan-300">4</span> (d_k=<span class="text-emerald-300">32</span>) · d_ff=<span class="text-fuchsia-300">256</span>
+                </p>
+            </div>
+        </div>
+
+        <!-- 5 Stage Camera Tour Buttons -->
+        <div class="flex items-center flex-wrap gap-1.5" id="stage-buttons">
+            <button data-stage="0" class="stage-btn active px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700/80 text-slate-300 hover:border-sky-400/50 transition">
+                0. Full Architecture
+            </button>
+            <button data-stage="1" class="stage-btn px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700/80 text-slate-300 hover:border-sky-400/50 transition">
+                1. Token & Pos Embeddings
+            </button>
+            <button data-stage="2" class="stage-btn px-2.5 py-1.5 rounded-lg text-xs font-medium border border-cyan-500/60 text-cyan-200 bg-cyan-500/10 hover:border-cyan-400 transition">
+                2. Multi-Head Attention
+            </button>
+            <button data-stage="3" class="stage-btn px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700/80 text-slate-300 hover:border-sky-400/50 transition">
+                3. Encoder FFN (3 Layers)
+            </button>
+            <button data-stage="4" class="stage-btn px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700/80 text-slate-300 hover:border-sky-400/50 transition">
+                4. Masked Mean Pooling
+            </button>
+            <button data-stage="5" class="stage-btn px-2.5 py-1.5 rounded-lg text-xs font-medium border border-slate-700/80 text-slate-300 hover:border-sky-400/50 transition">
+                5. L2 Norm & InfoNCE Loss
+            </button>
+        </div>
+
+        <!-- Playback & Labels Controls -->
+        <div class="flex items-center gap-2">
+            <button id="toggle-controls-btn" type="button" aria-controls="controls-panel" aria-expanded="false" class="lg:hidden px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 text-slate-200 border border-slate-600/50">Controls</button>
+            <button id="toggle-inspector-btn" type="button" aria-controls="inspector-panel" aria-expanded="false" class="lg:hidden px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 text-slate-200 border border-slate-600/50">Details</button>
+            <button id="toggle-flow-btn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 border border-sky-400/40 transition">
+                <span id="flow-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span id="flow-text">Pause Signal</span>
+            </button>
+            <button id="toggle-labels-btn" class="px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800/80 hover:bg-slate-700 text-slate-300 border border-slate-600/50 transition">
+                Labels: ON
+            </button>
+        </div>
+    </header>
+
+    <!-- LEFT INTERACTIVE SIDEBAR: 4-HEAD SPLIT, BATCH B BLOCKS & MASK CONTROLS -->
+    <aside id="controls-panel" class="fixed left-3 bottom-12 z-20 w-80 max-w-[calc(100vw-24px)] hidden lg:flex flex-col gap-3 pointer-events-none">
+        <div class="glass-panel rounded-xl p-3.5 pointer-events-auto flex flex-col gap-3 overflow-y-auto max-h-full">
+
+            <!-- 1. EXPLICIT 4-HEAD SPLIT & HEAD FILTER -->
+            <div class="bg-slate-900/90 border border-cyan-500/45 rounded-lg p-2.5 shadow-inner">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold uppercase tracking-wider text-cyan-300">1. Multi-Head Split (H = 4)</span>
+                    <span id="head-split-badge" class="text-[11px] mono px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-200 border border-cyan-400/40 font-semibold">
+                        100% Split [B,4,S,32]
+                    </span>
+                </div>
+                <p class="text-[11px] text-slate-300 mb-1.5">
+                    Morph between <strong class="text-white">Combined</strong> <code class="text-sky-300">[B, S, 128]</code> and <strong class="text-cyan-300">4 Parallel Heads</strong> <code class="text-cyan-300">[B, 4, S, 32]</code>:
+                </p>
+                <input id="head-split-slider" type="range" min="0" max="100" value="100" class="w-full accent-cyan-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg">
+                <div class="flex justify-between text-[10px] text-slate-400 mono mt-1 mb-2">
+                    <button id="btn-combine-heads" class="hover:text-white underline">0% Combined (D=128)</button>
+                    <button id="btn-split-heads" class="hover:text-cyan-300 underline">100% Split (4×32)</button>
+                </div>
+
+                <!-- Head Filter Buttons (ALL, H0, H1, H2, H3) -->
+                <div class="pt-1.5 border-t border-slate-800">
+                    <div class="flex items-center justify-between text-[10px] text-slate-400 uppercase font-bold mb-1.5">
+                        <span>Isolate Head Subspace</span>
+                        <span id="selected-head-label" class="mono text-cyan-300">All 4 Heads</span>
+                    </div>
+                    <div class="grid grid-cols-5 gap-1" id="head-filter-buttons">
+                        <button data-head="-1" class="head-filter-btn px-1.5 py-1 rounded text-[10px] font-bold mono bg-sky-500/30 text-white border border-sky-400 ring-2 ring-white">
+                            ALL
+                        </button>
+                        <button data-head="0" class="head-filter-btn px-1.5 py-1 rounded text-[10px] font-bold mono bg-cyan-500/15 text-cyan-300 border border-cyan-500/40 hover:border-cyan-300" title="Head 0: dims [0:32] Local Window">
+                            H0
+                        </button>
+                        <button data-head="1" class="head-filter-btn px-1.5 py-1 rounded text-[10px] font-bold mono bg-emerald-500/15 text-emerald-300 border border-emerald-500/40 hover:border-emerald-300" title="Head 1: dims [32:64] [CLS] Broadcast">
+                            H1
+                        </button>
+                        <button data-head="2" class="head-filter-btn px-1.5 py-1 rounded text-[10px] font-bold mono bg-amber-500/15 text-amber-300 border border-amber-500/40 hover:border-amber-300" title="Head 2: dims [64:96] Syntactic Links">
+                            H2
+                        </button>
+                        <button data-head="3" class="head-filter-btn px-1.5 py-1 rounded text-[10px] font-bold mono bg-pink-500/15 text-pink-300 border border-pink-500/40 hover:border-pink-300" title="Head 3: dims [96:128] Semantic Phrase">
+                            H3
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Live 2D Canvas Attention Matrix Heatmap -->
+                <div class="mt-2.5 pt-2 border-t border-slate-800">
+                    <div class="flex items-center justify-between mb-1">
+                        <span id="heatmap-title" class="text-[10px] font-bold mono text-cyan-300">Head 0 Attn A₀ [S×S] (dims 0:32)</span>
+                        <span id="heatmap-pattern-tag" class="text-[9px] mono px-1.5 py-0.5 rounded bg-slate-800 text-slate-300">Local Window</span>
+                    </div>
+                    <div class="flex items-center gap-2.5">
+                        <canvas id="attn-heatmap-canvas" width="96" height="96" class="w-20 h-20 rounded border border-slate-700 bg-slate-950 shrink-0"></canvas>
+                        <div class="text-[10px] text-slate-300 leading-tight space-y-1">
+                            <div><span class="inline-block w-2 h-2 rounded-full bg-cyan-400 mr-1"></span><strong>H0 [0:32]:</strong> Local Diagonal</div>
+                            <div><span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1"></span><strong>H1 [32:64]:</strong> [CLS] Broadcast</div>
+                            <div><span class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1"></span><strong>H2 [64:96]:</strong> Cross-Token</div>
+                            <div><span class="inline-block w-2 h-2 rounded-full bg-pink-400 mr-1"></span><strong>H3 [96:128]:</strong> Phrase Block</div>
+                            <div class="text-[9px] text-rose-400 mono pt-0.5">Red Cols = Masked [PAD] (0.0)</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 2. BATCH PARTITIONING INTO B BLOCKS OF SIZE [S x D] -->
+            <div class="bg-slate-900/80 border border-amber-500/35 rounded-lg p-2.5">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold uppercase tracking-wider text-amber-400">2. Batch Blocks (B × [S×D])</span>
+                    <span id="batch-size-badge" class="text-xs mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 font-semibold">
+                        B = 3 Blocks
+                    </span>
+                </div>
+                <input id="batch-size-slider" type="range" min="1" max="6" value="3" class="w-full accent-amber-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg">
+                <div class="flex justify-between text-[10px] text-slate-400 mono mt-1 mb-1.5">
+                    <span>B=1</span><span>B=2</span><span>B=3</span><span>B=4</span><span>B=5</span><span>B=6</span>
+                </div>
+
+                <label class="flex items-center justify-between text-[11px] text-slate-200 pt-1 border-t border-slate-800 cursor-pointer">
+                    <span>Explode B Batch Blocks (Z-Axis)</span>
+                    <input id="explode-batches-toggle" type="checkbox" checked class="w-4 h-4 accent-amber-400 rounded cursor-pointer">
+                </label>
+
+                <div id="batch-blocks-list" class="grid grid-cols-2 gap-1.5 mt-2"></div>
+            </div>
+
+            <!-- 3. ACTIVE NON-PAD TOKENS & SEQUENCE BLOCKS (S=32) -->
+            <div class="bg-slate-900/80 border border-sky-500/35 rounded-lg p-2.5">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold uppercase tracking-wider text-sky-400">3. Sequence & Mask (S=32)</span>
+                    <span id="s-blocks-badge" class="text-xs mono px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/40 font-semibold">
+                        8 Displayed
+                    </span>
+                </div>
+                <div class="flex items-center justify-between text-[11px] text-slate-300 mb-1">
+                    <span>Displayed Token Columns (S)</span>
+                </div>
+                <input id="s-blocks-slider" type="range" min="4" max="12" value="8" class="w-full accent-sky-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg">
+
+                <div class="flex items-center justify-between mt-2 mb-1 pt-1 border-t border-slate-800">
+                    <span class="text-[11px] font-semibold text-slate-200">Active Non-Pad Tokens</span>
+                    <span id="active-token-badge" class="text-[10px] mono px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        6 Active / 2 [PAD]
+                    </span>
+                </div>
+                <input id="active-tokens-slider" type="range" min="1" max="8" value="6" class="w-full accent-emerald-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg">
+
+                <label class="flex items-center justify-between cursor-pointer pt-1.5 mt-1.5 border-t border-slate-800">
+                    <span class="text-[11px] font-medium text-cyan-300">Show Linear Projection Rays (W_Q, W_K, W_V)</span>
+                    <input id="show-head-cuts-toggle" type="checkbox" checked class="w-4 h-4 accent-cyan-400 rounded cursor-pointer">
+                </label>
+
+                <div class="mt-2">
+                    <div class="flex justify-between text-[10px] mono text-slate-400 mb-1">
+                        <span>s=0 [CLS]</span>
+                        <span id="sep-pos-label">s=5 [SEP]</span>
+                        <span id="last-s-label">s=7 [PAD]</span>
+                    </div>
+                    <div id="token-strip-bar" class="flex gap-1 p-1 bg-slate-950 rounded border border-slate-800"></div>
+                </div>
+            </div>
+
+            <!-- 4. STAGE 5: UNIT HYPERSPHERE CONTRASTIVE SIMULATOR -->
+            <div class="bg-slate-900/80 border border-emerald-500/35 rounded-lg p-2.5">
+                <div class="flex items-center justify-between mb-1">
+                    <span class="text-xs font-bold uppercase tracking-wider text-emerald-400">4. Stage 5 InfoNCE Sphere</span>
+                    <span id="cosine-readout" class="text-[11px] mono text-emerald-300 font-semibold">cos(q, p⁺) = 0.92</span>
+                </div>
+                <input id="contrastive-slider" type="range" min="0" max="100" value="85" class="w-full accent-emerald-400 cursor-pointer h-1.5 bg-slate-700 rounded-lg">
+            </div>
+        </div>
+    </aside>
+
+    <!-- RIGHT INSPECTOR: PYTORCH CODE, TENSOR SHAPES & KATEX EQUATIONS -->
+    <aside id="inspector-panel" class="fixed right-3 bottom-12 z-20 w-[440px] max-w-[calc(100vw-24px)] hidden lg:flex flex-col gap-3 pointer-events-none">
+        <div class="glass-panel rounded-xl p-4 pointer-events-auto flex flex-col gap-3 overflow-y-auto max-h-full">
+            <div class="flex items-start justify-between gap-2 border-b border-slate-800 pb-2">
+                <div>
+                    <span id="inspector-stage-tag" class="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30 mono">
+                        STAGE 0 · FULL PIPELINE
+                    </span>
+                    <h2 id="inspector-title" class="text-base font-bold text-white mt-1">
+                        B Batch Blocks × 4 Parallel Attention Heads
+                    </h2>
+                </div>
+            </div>
+
+            <!-- Tensor Shape Transformation Pill -->
+            <div class="bg-slate-900/95 border border-amber-500/30 rounded-lg p-2.5">
+                <div class="flex items-center justify-between text-[10px] uppercase tracking-wider text-slate-400 font-semibold mb-1">
+                    <span>Live Tensor Shape Flow</span>
+                    <span id="inspector-b-chip" class="text-amber-300 mono">B=3, S=32, D=128, H=4</span>
+                </div>
+                <div id="inspector-shapes" class="text-xs mono text-amber-300 font-semibold break-words"></div>
+            </div>
+
+            <!-- Stage Explanation -->
+            <div id="inspector-desc" class="text-xs text-slate-300 leading-relaxed"></div>
+
+            <!-- KaTeX Mathematical Formulation Card with Color-Coded Variable Badges -->
+            <div class="bg-slate-950/95 border border-indigo-500/40 rounded-lg p-3 shadow-inner">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-[10px] uppercase tracking-wider text-indigo-400 font-bold">Mathematical Formulation (KaTeX)</span>
+                    <div class="flex items-center gap-1 text-[9px] mono">
+                        <span class="px-1.5 py-0.5 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">H0:0..32</span>
+                        <span class="px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">H1:32..64</span>
+                        <span class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">H2:64..96</span>
+                        <span class="px-1.5 py-0.5 rounded bg-pink-500/20 text-pink-300 border border-pink-500/30">H3:96..128</span>
+                    </div>
+                </div>
+                <div id="inspector-math" class="text-xs text-indigo-100 overflow-x-auto py-1 min-h-[54px] flex items-center justify-center"></div>
+            </div>
+
+            <!-- Synchronized PyTorch Code Inspector -->
+            <div class="flex-1 flex flex-col min-h-0">
+                <div class="flex items-center justify-between text-[11px] text-slate-400 mb-1.5">
+                    <span class="font-semibold uppercase tracking-wider">Synchronized PyTorch Code</span>
+                    <span class="mono text-[10px] text-sky-400">Hover any 3D block for slice</span>
+                </div>
+                <pre id="inspector-code" class="bg-slate-950/95 border border-slate-800 rounded-lg p-3 text-[11px] mono text-slate-300 overflow-x-auto leading-relaxed"></pre>
+            </div>
+        </div>
+    </aside>
+
+    <!-- BOTTOM INTERACTION BAR -->
+    <footer class="fixed bottom-3 left-1/2 -translate-x-1/2 z-20 px-4 py-1.5 rounded-full glass-panel text-[11px] text-slate-300 flex items-center gap-4 pointer-events-auto">
+        <span><strong class="text-sky-400">Left Drag:</strong> Orbit 3D</span>
+        <span><strong class="text-sky-400">Right Drag / Shift:</strong> Pan</span>
+        <span><strong class="text-sky-400">Scroll:</strong> Zoom</span>
+        <span><strong class="text-cyan-400">Hover 3D Block:</strong> Inspect <code class="mono">Tensor[b, h, s, :]</code></span>
+    </footer>
+
+    <script>
+        /***********************************************************************
+         * 1. MODEL HYPERPARAMETERS & STATE VARIABLES
+         ***********************************************************************/
+        const VOCAB_SIZE = 1000;
+        const S_FULL = 32;     // Logical sequence length S = 32
+        const D_MODEL = 128;   // Hidden dimension D = 128
+        const N_HEADS = 4;     // Number of heads H = 4
+        const D_K = 32;        // Dimension per head d_k = 128 / 4 = 32
+        const D_FF = 256;      // Feed-Forward expansion dimension d_ff = 256
+
+        let currentBatchSize = 3;      // Default B = 3 batch blocks of size [S x D]
+        let currentSBlocks = 8;        // Displayed token columns representing S = 32
+        let activeTokensCount = 6;     // Active non-pad tokens (mask = 1)
+        let explodeBatches = true;     // Z-axis exploded view of the B batch blocks
+        let showHeadSubdivisions = true; // Show 4x32 color-coded head bands on D=128 pillars
+        let headSplitFactor = 1.0;     // 0.0 = Combined [B, S, 128], 1.0 = Split 4 Heads [B, 4, S, 32]
+        let selectedHeadFilter = -1;   // -1 = All 4 heads, 0..3 = Isolate Head h
+        let heatmapHeadIdx = 0;        // Active head shown in the 2D canvas heatmap
+        let currentStage = 0;
+        let isFlowPlaying = true;
+        let showLabels = true;
+
+        // 4 Attention Heads Specifications (each d_k = 32)
+        const HEAD_SPECS = [
+            {
+                idx: 0,
+                name: "Head 0",
+                dims: "0:32",
+                patternName: "Local Window Diagonal",
+                hex: 0x22d3ee,
+                emissive: 0x0891b2,
+                cssText: "text-cyan-300",
+                cssBorder: "border-cyan-400/70 text-cyan-200 bg-cyan-500/15"
+            },
+            {
+                idx: 1,
+                name: "Head 1",
+                dims: "32:64",
+                patternName: "[CLS] Global Broadcast",
+                hex: 0x34d399,
+                emissive: 0x059669,
+                cssText: "text-emerald-300",
+                cssBorder: "border-emerald-400/70 text-emerald-200 bg-emerald-500/15"
+            },
+            {
+                idx: 2,
+                name: "Head 2",
+                dims: "64:96",
+                patternName: "Syntactic Cross-Token",
+                hex: 0xfbbf24,
+                emissive: 0xd97706,
+                cssText: "text-amber-300",
+                cssBorder: "border-amber-400/70 text-amber-200 bg-amber-500/15"
+            },
+            {
+                idx: 3,
+                name: "Head 3",
+                dims: "96:128",
+                patternName: "Semantic Phrase Block",
+                hex: 0xf472b6,
+                emissive: 0xdb2777,
+                cssText: "text-pink-300",
+                cssBorder: "border-pink-400/70 text-pink-200 bg-pink-500/15"
+            }
+        ];
+
+        // 6 Distinct Colors for the B Batch Blocks (B = 1..6)
+        const BATCH_COLORS = [
+            { hex: 0x38bdf8, name: "sky",     css: "border-sky-400/70 text-sky-300 bg-sky-500/15" },
+            { hex: 0xa855f7, name: "purple",  css: "border-purple-400/70 text-purple-300 bg-purple-500/15" },
+            { hex: 0x34d399, name: "emerald", css: "border-emerald-400/70 text-emerald-300 bg-emerald-500/15" },
+            { hex: 0xfbbf24, name: "amber",   css: "border-amber-400/70 text-amber-300 bg-amber-500/15" },
+            { hex: 0xf472b6, name: "pink",    css: "border-pink-400/70 text-pink-300 bg-pink-500/15" },
+            { hex: 0x818cf8, name: "indigo",  css: "border-indigo-400/70 text-indigo-300 bg-indigo-500/15" }
+        ];
+
+        // Compute realistic [S x S] softmax attention weights for Head h with padding mask
+        function computeHeadAttentionMatrix(h, S, actS) {
+            const mat = [];
+            for (let si = 0; si < S; si++) {
+                const row = new Array(S).fill(0);
+                if (si >= actS) {
+                    mat.push(row);
+                    continue;
+                }
+                let sumExp = 0;
+                const rawScores = new Array(S).fill(-1e9);
+                for (let sj = 0; sj < actS; sj++) {
+                    let score = 0;
+                    if (h === 0) {
+                        const dist = Math.abs(si - sj);
+                        score = dist === 0 ? 2.5 : (dist === 1 ? 1.4 : -1.1 * dist);
+                    } else if (h === 1) {
+                        score = (sj === 0) ? 2.4 : (sj === actS - 1 ? 1.5 : (si === sj ? 0.8 : -0.4));
+                    } else if (h === 2) {
+                        const isCross = (Math.abs(si - sj) === 2) || (si + sj === actS - 1);
+                        score = isCross ? 2.3 : (si === sj ? 0.9 : -0.6);
+                    } else {
+                        const half = Math.max(1, Math.floor(actS / 2));
+                        const samePhrase = (si < half && sj < half) || (si >= half && sj >= half);
+                        score = samePhrase ? 1.9 : -0.8;
+                    }
+                    rawScores[sj] = score;
+                    sumExp += Math.exp(score);
+                }
+                for (let sj = 0; sj < actS; sj++) {
+                    row[sj] = Math.exp(rawScores[sj]) / Math.max(sumExp, 1e-9);
+                }
+                mat.push(row);
+            }
+            return mat;
+        }
+
+        // Draw Live 2D Attention Matrix Heatmap in Left Sidebar
+        function drawAttentionHeatmap2D() {
+            const canvas = document.getElementById('attn-heatmap-canvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const hIdx = selectedHeadFilter >= 0 ? selectedHeadFilter : heatmapHeadIdx;
+            const hSpec = HEAD_SPECS[hIdx];
+            const S = currentSBlocks;
+            const actS = Math.min(activeTokensCount, S);
+            const mat = computeHeadAttentionMatrix(hIdx, S, actS);
+
+            document.getElementById('heatmap-title').textContent = `${hSpec.name} A_${hIdx} [${S}×${S}] (dims ${hSpec.dims})`;
+            document.getElementById('heatmap-title').className = `text-[10px] font-bold mono ${hSpec.cssText}`;
+            document.getElementById('heatmap-pattern-tag').textContent = hSpec.patternName;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const cellW = canvas.width / S;
+            const cellH = canvas.height / S;
+            const baseColor = new THREE.Color(hSpec.hex);
+
+            for (let si = 0; si < S; si++) {
+                for (let sj = 0; sj < S; sj++) {
+                    const w = mat[si][sj];
+                    if (sj >= actS) {
+                        ctx.fillStyle = 'rgba(136, 19, 55, 0.48)';
+                    } else if (si >= actS) {
+                        ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+                    } else {
+                        const alpha = Math.min(1, 0.16 + w * 1.65);
+                        ctx.fillStyle = `rgba(${Math.round(baseColor.r * 255)}, ${Math.round(baseColor.g * 255)}, ${Math.round(baseColor.b * 255)}, ${alpha})`;
+                    }
+                    ctx.fillRect(sj * cellW + 0.5, si * cellH + 0.5, cellW - 1, cellH - 1);
+                }
+            }
+        }
+
+        /***********************************************************************
+         * 2. STAGE DEFINITIONS, KATEX EQUATIONS & SYNCHRONIZED PYTORCH CODE
+         ***********************************************************************/
+        const STAGE_INFO = {
+            0: {
+                tag: "STAGE 0 · END-TO-END ARCHITECTURE OVERVIEW",
+                title: "Text Embedding Pipeline: From Token IDs to L2-Normalized Sentence Vectors",
+                getShapes: (B) => `input_ids [${B}, 32] → Embeddings [${B}, 32, 128] → 3× Encoder Layers [${B}, 32, 128] → Mean Pool [${B}, 128] → L2 Norm [${B}, 128]`,
+                getDesc: (B, S, actS) => `This pipeline converts a batch of <strong>B=${B} tokenized sentences</strong> (each padded to length <code class="text-sky-300">S=32</code>) into normalized 128-dimensional sentence embeddings. First, token IDs are mapped to 128-D vectors with positional encodings (<strong>Stage 1</strong>). Next, <strong>Multi-Head Self-Attention</strong> projects the embeddings into 4 attention heads (<code class="text-cyan-300">d_k=32</code>) to contextualize tokens across the sequence (<strong>Stage 2</strong>), followed by a <strong>Feed-Forward Network</strong> repeated across 3 stacked encoder layers (<strong>Stage 3</strong>). Finally, <strong>Masked Mean Pooling</strong> averages the active token vectors into one vector per sentence (<strong>Stage 4</strong>), and <strong>L2 Normalization</strong> projects them onto the unit hypersphere for contrastive InfoNCE training (<strong>Stage 5</strong>).`,
+                getMathTex: (B) => `\\text{IDs}_{[${B}\\times 32]} \\xrightarrow{\\text{Embed}} \\mathbf{X}_{[${B}\\times 32\\times 128]} \\xrightarrow{3\\times\\text{Encoder}} \\mathbf{H}_{[${B}\\times 32\\times 128]} \\xrightarrow{\\text{MeanPool}} \\mathbf{u}_{[${B}\\times 128]} \\xrightarrow{L_2\\text{ Norm}} \\hat{\\mathbf{u}}_{[${B}\\times 128]}`,
+                cameraPos: { x: -2, y: 24, z: 70 },
+                lookAt: { x: -2, y: 0.5, z: 0 },
+                code: `class TextEmbeddingModel(nn.Module):
+    def __init__(self, vocab_size=1000, d_model=128, n_heads=4, d_ff=256, n_layers=3, max_len=32):
+        super().__init__()
+        self.token_embeddings = nn.Embedding(vocab_size, d_model, padding_idx=PAD_IDX)
+        self.pos_embeddings = nn.Embedding(max_len, d_model)
+        self.layers = nn.ModuleList([
+            TransformerEncoderBlock(d_model, n_heads, d_ff) for _ in range(n_layers)
+        ])
+        self.final_norm = nn.LayerNorm(d_model)
+
+<span class="code-highlight">    def forward(self, input_ids, attention_mask):
+        B, S = input_ids.shape
+        x = self.token_embeddings(input_ids) + self.pos_embeddings(torch.arange(S))
+        mask = attention_mask.unsqueeze(1).unsqueeze(2)  # [B, 1, 1, S]
+        for layer in self.layers:
+            x = layer(x, mask)                           # Multi-Head Attention + FFN
+        hidden_states = self.final_norm(x)               # Contextual Token Embeddings [B, S, 128]
+        pooled = (hidden_states * attention_mask.unsqueeze(-1)).sum(1) / attention_mask.sum(1, keepdim=True)
+        return F.normalize(pooled, p=2, dim=1)           # L2-Normalized Sentence Embeddings [B, 128]</span>`
+            },
+            1: {
+                tag: "STAGE 1 · TOKEN & POSITIONAL EMBEDDINGS",
+                title: "Vocabulary Lookup Table W [1000×128] + Positional Encoding E_pos [32×128]",
+                getShapes: (B) => `input_ids [${B}, 32] → token_embeddings [${B}, 32, 128] + pos_embeddings [1, 32, 128] → x [${B}, 32, 128]`,
+                getDesc: (B, S, actS) => `Each input sentence is represented as a sequence of integer token IDs. <code class="text-sky-300">self.token_embeddings</code> looks up the corresponding 128-dimensional vector for each token from a learnable matrix <code class="text-sky-300">W ∈ ℝ^{1000×128}</code>. Because self-attention processes all tokens in parallel without inherent word order, <code class="text-indigo-300">self.pos_embeddings</code> adds a learnable position vector for each slot <code class="text-sky-300">s ∈ {0, ..., 31}</code>, producing <strong>B=${B} batch tensors</strong> of shape <code class="text-amber-300">[32 × 128]</code>.`,
+                getMathTex: (B) => `\\mathbf{x}_{b,s} = \\text{Dropout}\\bigl(\\mathbf{E}_{\\text{tok}}[\\text{id}_{b,s}] + \\mathbf{E}_{\\text{pos}}[s]\\bigr) \\in \\mathbb{R}^{128}, \\quad \\mathbf{X} \\in \\mathbb{R}^{${B}\\times 32\\times 128}`,
+                cameraPos: { x: -42, y: 12, z: 32 },
+                lookAt: { x: -41, y: 0.5, z: 0 },
+                code: `class TextEmbeddingModel(nn.Module):
+    def __init__(self, vocab_size=1000, d_model=128, max_len=32, dropout=0.1):
+        super().__init__()
+<span class="code-highlight">        # Token Embedding Lookup Matrix [1000, 128] & Positional Embedding Matrix [32, 128]
+        self.token_embeddings = nn.Embedding(vocab_size, d_model, padding_idx=PAD_IDX)
+        self.pos_embeddings = nn.Embedding(max_len, d_model)
+        self.dropout = nn.Dropout(dropout)
+
+    def forward(self, input_ids, attention_mask):
+        B, S = input_ids.shape  # B=${currentBatchSize} sentences, S=32 tokens per sentence
+        positions = torch.arange(S, device=input_ids.device).unsqueeze(0).expand(B, S)
+        x = self.token_embeddings(input_ids) + self.pos_embeddings(positions)
+        x = self.dropout(x)     # Shape: [B, S, 128]</span>`
+            },
+            2: {
+                tag: "STAGE 2 · MULTI-HEAD SELF-ATTENTION (H = 4, d_k = 32)",
+                title: "Q, K, V Projections, Scaled Dot-Product Attention & Output Projection",
+                getShapes: (B) => `x [${B},32,128] → Q,K,V [${B},4,32,32] → Attn Weights [${B},4,32,32] → Context [${B},4,32,32] → Concat & W_O [${B},32,128]`,
+                getDesc: (B, S, actS) => `Multi-Head Self-Attention allows every token to gather context from other words in the same sentence across <strong>4 parallel attention heads</strong>:<br>
+                • <strong>2A (Q, K, V Projections):</strong> For each head <code class="text-cyan-300">h ∈ {0,1,2,3}</code>, linear projections <code class="text-cyan-300">W_h^Q, W_h^K, W_h^V ∈ ℝ^{128×32}</code> project the 128-D token embeddings into 32-D Queries, Keys, and Values.<br>
+                • <strong>2B (Scaled Dot-Product Attention):</strong> Each head computes an <code class="text-emerald-300">[S×S]</code> attention matrix. Padding positions (<code class="text-rose-400">mask == 0</code>) are set to <code class="text-rose-400">-1e9</code> before Softmax so <code class="text-rose-400">[PAD]</code> tokens receive zero attention weight.<br>
+                • <strong>2C (Concat & Output Projection):</strong> The 4 head context vectors (<code class="text-pink-300">4 × 32</code>) are concatenated into <code class="text-sky-300">[S×128]</code> and passed through <code class="text-indigo-300">self.out_proj (W_O ∈ ℝ^{128×128})</code> to combine features learned across all heads.`,
+                getMathTex: (B) => `\\mathbf{Q}_h, \\mathbf{K}_h, \\mathbf{V}_h = \\mathbf{X}\\mathbf{W}_h^{Q,K,V} \\in \\mathbb{R}^{S\\times 32}, \\quad \\mathbf{C}_h = \\text{softmax}\\!\\left(\\frac{\\mathbf{Q}_h\\mathbf{K}_h^\\top}{\\sqrt{32}}+\\mathbf{M}\\right)\\mathbf{V}_h, \\quad \\text{MHA}(\\mathbf{X}) = \\text{Concat}(\\mathbf{C}_0,\\mathbf{C}_1,\\mathbf{C}_2,\\mathbf{C}_3)\\mathbf{W}^O`,
+                cameraPos: { x: -13, y: 14, z: 38 },
+                lookAt: { x: -13, y: 0.6, z: 0 },
+                code: `class MultiHeadSelfAttention(nn.Module):
+    def forward(self, x, mask=None):
+        B, S, D = x.shape
+<span class="code-highlight">        # 2A. Linearly project 128-D embeddings and split into H=4 heads (each d_k = 32)
+        q = self.q_proj(x).view(B, S, self.n_heads, self.d_k).transpose(1, 2)  # [B, 4, S, 32]
+        k = self.k_proj(x).view(B, S, self.n_heads, self.d_k).transpose(1, 2)  # [B, 4, S, 32]
+        v = self.v_proj(x).view(B, S, self.n_heads, self.d_k).transpose(1, 2)  # [B, 4, S, 32]
+
+        # 2B. Scaled dot-product attention per head with [PAD] token masking
+        scores = torch.matmul(q, k.transpose(-2, -1)) / math.sqrt(self.d_k)    # [B, 4, S, S]
+        if mask is not None:
+            scores = scores.masked_fill(mask == 0, -1e9)
+        attn_weights = self.dropout(F.softmax(scores, dim=-1))                 # [B, 4, S, S]
+
+        # 2C. Multiply by V, concatenate the 4 heads [B, S, 128], and apply output projection W_O
+        context = torch.matmul(attn_weights, v).transpose(1, 2).contiguous().view(B, S, D)
+        return self.out_proj(context)                                          # [B, S, 128]</span>`
+            },
+            3: {
+                tag: "STAGE 3 · TRANSFORMER ENCODER BLOCKS (3 LAYERS & FFN 256)",
+                title: "3× Stacked Encoder Layers: Residual LayerNorm & FFN (128 → 256 → 128)",
+                getShapes: (B) => `[${B}, 32, 128] → Linear(128, 256) + GELU: [${B}, 32, 256] → Linear(256, 128) + LN: [${B}, 32, 128]`,
+                getDesc: (B, S, actS) => `After Multi-Head Self-Attention, each token vector passes through a residual connection and <code class="text-sky-300">LayerNorm</code>, followed by a Position-Wise <strong>Feed-Forward Network (FFN)</strong>. The FFN expands each token representation from <code class="text-sky-300">d_model=128</code> to <code class="text-fuchsia-300">d_ff=256</code> with a non-linear <code class="text-fuchsia-300">GELU</code> activation before projecting back down to <code class="text-sky-300">128</code>. This entire Encoder Block (Attention + FFN) is stacked <code class="text-amber-300">n_layers = 3</code> times.`,
+                getMathTex: (B) => `\\mathbf{h}^{(l)}_{b,s} = \\text{LN}\\!\\left(\\mathbf{z}_{b,s} + \\mathbf{W}_2\\,\\text{GELU}\\bigl(\\mathbf{W}_1 \\mathbf{z}_{b,s} + \\mathbf{b}_1\\bigr) + \\mathbf{b}_2\\right) \\in \\mathbb{R}^{128}, \\quad \\mathbf{W}_1 \\in \\mathbb{R}^{256\\times 128},\\; l=1,2,3`,
+                cameraPos: { x: 15, y: 15, z: 35 },
+                lookAt: { x: 15, y: 1.5, z: 0 },
+                code: `class TransformerEncoderBlock(nn.Module):
+    def __init__(self, d_model=128, n_heads=4, d_ff=256, dropout=0.1):
+        super().__init__()
+        self.attention = MultiHeadSelfAttention(d_model, n_heads, dropout)
+        self.norm1 = nn.LayerNorm(d_model)
+        self.norm2 = nn.LayerNorm(d_model)
+<span class="code-highlight">        self.ffn = nn.Sequential(
+            nn.Linear(d_model, d_ff),  # Expands [B, S, 128] -> [B, S, 256]
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(d_ff, d_model),  # Projects [B, S, 256] -> [B, S, 128]
+            nn.Dropout(dropout)
+        )
+    def forward(self, x, mask=None):
+        x = self.norm1(x + self.dropout(self.attention(x, mask)))
+        x = self.norm2(x + self.ffn(x))
+        return x</span>`
+            },
+            4: {
+                tag: "STAGE 4 · MASKED MEAN POOLING ([B, S, 128] → [B, 128])",
+                title: "Sequence Aggregation: Averaging Active Token Vectors into a Sentence Embedding",
+                getShapes: (B) => `hidden_states [${B}, 32, 128] × mask [${B}, 32, 1] → sum(dim=1) / clamp(sum_mask) → pooled [${B}, 128]`,
+                getDesc: (B, S, actS) => `The Transformer encoder outputs a contextualized 128-D vector for every token in the sequence (<code class="text-sky-300">[B, 32, 128]</code>). To compress each sentence into a single fixed-size vector, <strong>Masked Mean Pooling</strong> zeros out the <code class="text-rose-400">${S - actS} [PAD] tokens</code> using <code class="text-emerald-300">attention_mask</code>, sums the remaining <code class="text-emerald-300">${actS} active token vectors</code> (green rays), and divides by the count of active tokens—yielding one sentence vector <code class="text-emerald-300">u_b ∈ ℝ^{128}</code> per batch item.`,
+                getMathTex: (B) => `\\mathbf{u}_b = \\frac{\\sum_{s=1}^{S} m_{b,s}\\,\\mathbf{h}_{b,s}}{\\max\\!\\left(\\sum_{s=1}^{S} m_{b,s},\\; 10^{-9}\\right)} \\in \\mathbb{R}^{128} \\quad \\forall b \\in \\{0, \\dots, ${B-1}\\}`,
+                cameraPos: { x: 35, y: 12, z: 30 },
+                lookAt: { x: 35, y: 0.5, z: 0 },
+                code: `hidden_states = self.final_norm(x)  # [B, S, 128]
+
+<span class="code-highlight"># Masked Mean Pooling over non-padding tokens (mask == 1)
+input_mask_expanded = attention_mask.unsqueeze(-1).expand(hidden_states.size()).float()
+sum_embeddings = torch.sum(hidden_states * input_mask_expanded, dim=1)  # [B, 128]
+sum_mask = torch.clamp(input_mask_expanded.sum(dim=1), min=1e-9)        # [B, 128]
+pooled = sum_embeddings / sum_mask                                      # [B, 128]</span>`
+            },
+            5: {
+                tag: "STAGE 5 · L2 NORMALIZATION & CONTRASTIVE INFONCE LOSS",
+                title: "Unit Hypersphere Projection (||û_b||₂ = 1.0) & Contrastive Metric Learning",
+                getShapes: (B) => `pooled [${B}, 128] → F.normalize(pooled, p=2, dim=1) → normalized_embeddings [${B}, 128]`,
+                getDesc: (B, S, actS) => `<code class="text-emerald-300">F.normalize(pooled, p=2, dim=1)</code> divides each sentence vector by its Euclidean norm so all embeddings lie on the surface of a <strong>unit hypersphere</strong> (<code class="text-emerald-300">||û_b||₂ = 1.0</code>). On this unit sphere, the dot product between any two vectors equals their <strong>cosine similarity</strong>. During training, the <strong>InfoNCE loss</strong> pulls semantically related pairs (<span class="text-sky-400">Anchor q</span> and <span class="text-emerald-400">Positive p⁺</span>) closer together on the sphere while pushing unrelated <span class="text-rose-400">Negatives p⁻</span> apart.`,
+                getMathTex: (B) => `\\hat{\\mathbf{u}}_b = \\frac{\\mathbf{u}_b}{\\|\\mathbf{u}_b\\|_2} \\in \\mathbb{S}^{127}, \\quad \\mathcal{L}_{\\text{InfoNCE}} = -\\log \\frac{\\exp(\\hat{\\mathbf{q}}^\\top \\hat{\\mathbf{p}}^+ / \\tau)}{\\exp(\\hat{\\mathbf{q}}^\\top \\hat{\\mathbf{p}}^+ / \\tau) + \\sum_j \\exp(\\hat{\\mathbf{q}}^\\top \\hat{\\mathbf{p}}_j^- / \\tau)}`,
+                cameraPos: { x: 54, y: 9, z: 25 },
+                lookAt: { x: 53.5, y: 0.5, z: 0 },
+                code: `<span class="code-highlight"># L2 Normalization onto the unit hypersphere: ||normalized_embeddings[b]||_2 = 1.0
+normalized_embeddings = F.normalize(pooled, p=2, dim=1)  # Shape: [B, 128]
+return normalized_embeddings</span>
+
+# Contrastive InfoNCE Loss with In-Batch & Hard Negatives:
+# logits = torch.matmul(q_norm, p_norm.T) / temperature  # Cosine similarity scaled by tau`
+            }
+        };
+
+        /***********************************************************************
+         * 3. THREE.JS SCENE, CAMERA, ORBITCONTROLS & RAYCASTER INITIALIZATION
+         ***********************************************************************/
+        const container = document.getElementById('canvas-container');
+        const labelsContainer = document.getElementById('labels-container');
+        const tooltipEl = document.getElementById('raycast-tooltip');
+
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050811);
+        scene.fog = new THREE.FogExp2(0x050811, 0.0032);
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 500);
+        camera.position.set(-3, 24, 68);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        container.appendChild(renderer.domElement);
+
+        // OrbitControls initialization
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.07;
+        controls.maxDistance = 160;
+        controls.minDistance = 8;
+        controls.target.set(-3, 0.5, 0);
+
+        // Smooth camera flight target state
+        const camFlight = {
+            active: false,
+            desiredPos: new THREE.Vector3(-3, 24, 68),
+            desiredTarget: new THREE.Vector3(-3, 0.5, 0)
+        };
+
+        renderer.domElement.addEventListener('pointerdown', () => {
+            camFlight.active = false;
+        });
+        renderer.domElement.addEventListener('wheel', () => {
+            camFlight.active = false;
+        }, { passive: true });
+
+        // Scene Lights
+        scene.add(new THREE.AmbientLight(0xdbeafe, 0.78));
+        const dirLight1 = new THREE.DirectionalLight(0x38bdf8, 0.95);
+        dirLight1.position.set(25, 48, 38);
+        scene.add(dirLight1);
+
+        const dirLight2 = new THREE.DirectionalLight(0xc084fc, 0.65);
+        dirLight2.position.set(-35, -22, -28);
+        scene.add(dirLight2);
+
+        // Reference Floor Grid
+        const gridHelper = new THREE.GridHelper(180, 90, 0x1e293b, 0x0f172a);
+        gridHelper.position.set(0, -7.2, 0);
+        scene.add(gridHelper);
+
+        // KaTeX Formula Renderer with Fallback
+        function renderStageKaTeX(stageIdx) {
+            const info = STAGE_INFO[stageIdx];
+            if (!info) return;
+            const mathContainer = document.getElementById('inspector-math');
+            const texStr = info.getMathTex(currentBatchSize);
+            if (window.katex) {
+                try {
+                    window.katex.render(texStr, mathContainer, {
+                        displayMode: true,
+                        throwOnError: false
+                    });
+                } catch (err) {
+                    mathContainer.textContent = texStr;
+                }
+            } else {
+                mathContainer.textContent = texStr;
+            }
+        }
+
+        function updateInspectorForStage(stageIdx) {
+            currentStage = stageIdx;
+            const info = STAGE_INFO[stageIdx];
+            if (!info) return;
+
+            document.querySelectorAll('.stage-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.stage) === stageIdx);
+            });
+
+            document.getElementById('inspector-stage-tag').textContent = info.tag;
+            document.getElementById('inspector-title').textContent = info.title;
+            document.getElementById('inspector-b-chip').textContent = `B=${currentBatchSize}, S=32 (${currentSBlocks} cols), D=128`;
+            document.getElementById('inspector-shapes').textContent = info.getShapes(currentBatchSize);
+            document.getElementById('inspector-desc').innerHTML = info.getDesc(currentBatchSize, currentSBlocks, activeTokensCount);
+            document.getElementById('inspector-code').innerHTML = info.code;
+            renderStageKaTeX(stageIdx);
+        }
+
+        function transitionToStage(stageIdx) {
+            const info = STAGE_INFO[stageIdx];
+            if (!info) return;
+            camFlight.desiredPos.set(info.cameraPos.x, info.cameraPos.y, info.cameraPos.z);
+            camFlight.desiredTarget.set(info.lookAt.x, info.lookAt.y, info.lookAt.z);
+            camFlight.active = true;
+            updateInspectorForStage(stageIdx);
+        }
+
+        // Raycaster Hover Tooltip
+        const raycaster = new THREE.Raycaster();
+        const mouseNDC = new THREE.Vector2();
+        let hoverables = [];
+
+        window.addEventListener('mousemove', (e) => {
+            mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouseNDC.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouseNDC, camera);
+            const hits = raycaster.intersectObjects(hoverables, false);
+            if (hits.length > 0 && hits[0].object.userData && hits[0].object.userData.batchTitle) {
+                const ud = hits[0].object.userData;
+                tooltipEl.style.opacity = '1';
+                tooltipEl.style.left = `${Math.min(window.innerWidth - 320, e.clientX + 16)}px`;
+                tooltipEl.style.top = `${Math.max(16, e.clientY - 24)}px`;
+                document.getElementById('tooltip-title').textContent = ud.batchTitle;
+                document.getElementById('tooltip-details').textContent = ud.shapeInfo;
+                document.getElementById('tooltip-sub').textContent = ud.subInfo;
+            } else {
+                tooltipEl.style.opacity = '0';
+            }
+        });
+
+        /***********************************************************************
+         * 4. 3D GEOMETRY BUILDERS: STATIC LOOKUP, B BATCH BLOCKS & 4 HEADS
+         ***********************************************************************/
+        const dynamicBatchGroup = new THREE.Group();
+        scene.add(dynamicBatchGroup);
+
+        const staticStageGroup = new THREE.Group();
+        scene.add(staticStageGroup);
+
+        let floatingLabels = [];
+
+        function clearFloatingLabels() {
+            labelsContainer.innerHTML = '';
+            floatingLabels = [];
+        }
+
+        function addFloatingLabel(text, subtext, worldPos, stageIdx, colorClass = "border-sky-500/50 text-sky-300") {
+            const el = document.createElement('div');
+            el.className = `floating-label px-2 py-1 rounded-lg glass-panel border ${colorClass} text-[10px] shadow-lg`;
+            el.innerHTML = `<div class="font-bold tracking-tight">${text}</div>${subtext ? `<div class="text-[9px] mono text-slate-400">${subtext}</div>` : ''}`;
+            el.addEventListener('click', () => transitionToStage(stageIdx));
+            labelsContainer.appendChild(el);
+            floatingLabels.push({ el, worldPos: worldPos.clone(), stageIdx });
+        }
+
+        function createWireBox(w, h, d, color = 0x38bdf8, opacity = 0.55) {
+            const geo = new THREE.BoxGeometry(w, h, d);
+            const edges = new THREE.EdgesGeometry(geo);
+            const mat = new THREE.LineBasicMaterial({ color, transparent: true, opacity });
+            return new THREE.LineSegments(edges, mat);
+        }
+
+        function createDashedDividerPlane(xCenter, zPos, width = 92, height = 9.0) {
+            const points = [
+                new THREE.Vector3(xCenter - width / 2, -4.0, zPos),
+                new THREE.Vector3(xCenter + width / 2, -4.0, zPos),
+                new THREE.Vector3(xCenter + width / 2, height - 4.0, zPos),
+                new THREE.Vector3(xCenter - width / 2, height - 4.0, zPos),
+                new THREE.Vector3(xCenter - width / 2, -4.0, zPos)
+            ];
+            const geo = new THREE.BufferGeometry().setFromPoints(points);
+            const mat = new THREE.LineDashedMaterial({
+                color: 0x475569,
+                dashSize: 0.9,
+                gapSize: 0.6,
+                transparent: true,
+                opacity: 0.45
+            });
+            const line = new THREE.Line(geo, mat);
+            line.computeLineDistances();
+            return line;
+        }
+
+        // Build Stage 1 Lookup Table W [1000, 128] + Positional Embeddings E_pos [32, 128]
+        function buildStaticElements() {
+            const wGroup = new THREE.Group();
+            wGroup.position.set(-54, 0.6, 0);
+            staticStageGroup.add(wGroup);
+
+            const wSlab = new THREE.Mesh(
+                new THREE.BoxGeometry(2.2, 6.2, 7.6),
+                new THREE.MeshStandardMaterial({
+                    color: 0x0284c7,
+                    emissive: 0x0369a1,
+                    emissiveIntensity: 0.45,
+                    roughness: 0.3,
+                    metalness: 0.2,
+                    transparent: true,
+                    opacity: 0.86
+                })
+            );
+            wSlab.userData = {
+                batchTitle: "Stage 1 · Token Embedding Matrix W",
+                shapeInfo: "Shape: [vocab_size=1000, d_model=128]",
+                subInfo: "nn.Embedding(1000, 128) shared across all B batch blocks"
+            };
+            hoverables.push(wSlab);
+            wGroup.add(wSlab);
+            wGroup.add(createWireBox(2.35, 6.35, 7.75, 0x38bdf8, 0.75));
+
+            for (let r = -2.6; r <= 2.6; r += 0.65) {
+                const rowWire = createWireBox(2.28, 0.08, 7.65, 0x7dd3fc, 0.35);
+                rowWire.position.y = r;
+                wGroup.add(rowWire);
+            }
+
+            const posSlab = new THREE.Mesh(
+                new THREE.BoxGeometry(1.8, 2.2, 5.2),
+                new THREE.MeshStandardMaterial({
+                    color: 0x4f46e5,
+                    emissive: 0x3730a3,
+                    emissiveIntensity: 0.45,
+                    transparent: true,
+                    opacity: 0.85
+                })
+            );
+            posSlab.position.set(-54, -4.4, 0);
+            staticStageGroup.add(posSlab);
+            const posWire = createWireBox(1.9, 2.3, 5.3, 0x818cf8, 0.65);
+            posWire.position.copy(posSlab.position);
+            staticStageGroup.add(posWire);
+        }
+        buildStaticElements();
+
+        // Stage 5 Unit Hypersphere & Contrastive Vectors
+        const sphereCenter = new THREE.Vector3(53.5, 0.5, 0);
+        const sphereRadius = 5.0;
+        const stage5Group = new THREE.Group();
+        scene.add(stage5Group);
+
+        const unitSphereWire = new THREE.Mesh(
+            new THREE.IcosahedronGeometry(sphereRadius, 3),
+            new THREE.MeshBasicMaterial({ color: 0x38bdf8, wireframe: true, transparent: true, opacity: 0.18 })
+        );
+        unitSphereWire.position.copy(sphereCenter);
+        stage5Group.add(unitSphereWire);
+
+        const innerCoreSphere = new THREE.Mesh(
+            new THREE.SphereGeometry(sphereRadius * 0.98, 32, 32),
+            new THREE.MeshStandardMaterial({
+                color: 0x0f172a,
+                emissive: 0x0284c7,
+                emissiveIntensity: 0.12,
+                transparent: true,
+                opacity: 0.36,
+                roughness: 0.2
+            })
+        );
+        innerCoreSphere.position.copy(sphereCenter);
+        stage5Group.add(innerCoreSphere);
+
+        const equatorRing = new THREE.Mesh(
+            new THREE.RingGeometry(sphereRadius - 0.04, sphereRadius + 0.04, 64),
+            new THREE.MeshBasicMaterial({ color: 0x34d399, side: THREE.DoubleSide, transparent: true, opacity: 0.45 })
+        );
+        equatorRing.position.copy(sphereCenter);
+        equatorRing.rotation.x = Math.PI / 2;
+        stage5Group.add(equatorRing);
+
+        function createUnitSphereVector(colorHex, tipSize = 0.3) {
+            const group = new THREE.Group();
+            group.position.copy(sphereCenter);
+            const lineGeo = new THREE.BufferGeometry().setFromPoints([
+                new THREE.Vector3(0, 0, 0),
+                new THREE.Vector3(0, sphereRadius, 0)
+            ]);
+            const line = new THREE.Line(lineGeo, new THREE.LineBasicMaterial({ color: colorHex, linewidth: 2 }));
+            group.add(line);
+
+            const tip = new THREE.Mesh(
+                new THREE.SphereGeometry(tipSize, 16, 16),
+                new THREE.MeshBasicMaterial({ color: colorHex })
+            );
+            tip.position.set(0, sphereRadius, 0);
+            group.add(tip);
+            stage5Group.add(group);
+            return { group, line, tip };
+        }
+
+        const anchorVecObj = createUnitSphereVector(0x38bdf8, 0.34);
+        const posVecObj = createUnitSphereVector(0x34d399, 0.34);
+        const negVecObj = createUnitSphereVector(0xf43f5e, 0.34);
+        const batchUnitVectors = [];
+        for (let b = 0; b < 6; b++) {
+            batchUnitVectors.push(createUnitSphereVector(BATCH_COLORS[b].hex, 0.24));
+        }
+
+        function setVectorDirection(vecObj, dirVec) {
+            const normDir = dirVec.clone().normalize().multiplyScalar(sphereRadius);
+            const posArr = vecObj.line.geometry.attributes.position.array;
+            posArr[3] = normDir.x;
+            posArr[4] = normDir.y;
+            posArr[5] = normDir.z;
+            vecObj.line.geometry.attributes.position.needsUpdate = true;
+            vecObj.tip.position.copy(normDir);
+            return normDir;
+        }
+
+        const anchorDir = new THREE.Vector3(0.25, 0.88, 0.40).normalize();
+        setVectorDirection(anchorVecObj, anchorDir);
+
+        function updateContrastiveVectors(progressPct) {
+            const t = progressPct / 100.0;
+            const posStart = new THREE.Vector3(-0.7, 0.4, 0.58).normalize();
+            const posEnd = new THREE.Vector3(0.32, 0.85, 0.42).normalize();
+            const curPos = new THREE.Vector3().lerpVectors(posStart, posEnd, t).normalize();
+            setVectorDirection(posVecObj, curPos);
+
+            const negStart = new THREE.Vector3(0.4, 0.72, 0.55).normalize();
+            const negEnd = new THREE.Vector3(-0.68, -0.58, -0.45).normalize();
+            const curNeg = new THREE.Vector3().lerpVectors(negStart, negEnd, t).normalize();
+            setVectorDirection(negVecObj, curNeg);
+
+            const cosSim = anchorDir.dot(curPos);
+            document.getElementById('cosine-readout').textContent = `cos(q, p⁺) = ${cosSim.toFixed(2)}`;
+        }
+
+        function getBatchZOffset(b, B) {
+            if (B === 1) return 0;
+            const spacing = explodeBatches ? 4.4 : 1.75;
+            return (b - (B - 1) / 2) * spacing;
+        }
+
+        function getHeadYOffset(h, totalHeight = 2.68) {
+            const baseBandY = 0.5 + (1.5 - h) * (totalHeight / 4);
+            const splitLaneY = 0.5 + (1.5 - h) * 2.55;
+            return baseBandY * (1 - headSplitFactor) + splitLaneY * headSplitFactor;
+        }
+
+        // Create 4-Striped Concat Block ([C_0 | C_1 | C_2 | C_3] stacked along D=128 before W_O)
+        function createMultiHeadLayeredSubBlock(widthX, heightY, depthZ, fallbackHex, wireHex, isAct, useHeadColors, bIdx, sIdx, stageName) {
+            const group = new THREE.Group();
+            const bandH = heightY / N_HEADS;
+            for (let h = 0; h < N_HEADS; h++) {
+                const hSpec = HEAD_SPECS[h];
+                const isHeadSelected = (selectedHeadFilter === -1 || selectedHeadFilter === h);
+                const yOff = (1.5 - h) * bandH;
+                const fillCol = useHeadColors ? hSpec.hex : fallbackHex;
+                const mesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(widthX, bandH * 0.92, depthZ),
+                    new THREE.MeshStandardMaterial({
+                        color: isAct ? fillCol : 0x1e293b,
+                        emissive: isAct ? (useHeadColors ? hSpec.emissive : fallbackHex) : 0x330a18,
+                        emissiveIntensity: isAct ? 0.45 : 0.12,
+                        roughness: 0.25,
+                        metalness: 0.2,
+                        transparent: true,
+                        opacity: isAct ? (isHeadSelected ? 0.94 : 0.2) : 0.22
+                    })
+                );
+                mesh.position.y = yOff;
+                mesh.userData = {
+                    batchTitle: `${stageName} · Batch b=${bIdx} · Token s=${sIdx} · ${hSpec.name}`,
+                    shapeInfo: `Slice: Concat[b=${bIdx}, s=${sIdx}, dims ${hSpec.dims}] ∈ ℝ^{1×32}`,
+                    subInfo: isAct
+                        ? `Concatenated ${hSpec.name} context vector C_${h} (dims ${hSpec.dims}) prior to output projection W_O`
+                        : `Masked [PAD] Token (attention_mask=0)`
+                };
+                hoverables.push(mesh);
+                group.add(mesh);
+            }
+            group.add(createWireBox(widthX + 0.03, heightY + 0.03, depthZ + 0.03, isAct ? wireHex : 0xf43f5e, isAct ? 0.85 : 0.3));
+            return group;
+        }
+
+        // Create a single-band framed sub-block
+        function createFramedSubBlock(widthX, heightY, depthZ, fillHex, wireHex, isAct, opacityOverride, userDataObj) {
+            const group = new THREE.Group();
+            const mesh = new THREE.Mesh(
+                new THREE.BoxGeometry(widthX, heightY, depthZ),
+                new THREE.MeshStandardMaterial({
+                    color: isAct ? fillHex : 0x1e293b,
+                    emissive: isAct ? fillHex : 0x330a18,
+                    emissiveIntensity: isAct ? 0.42 : 0.12,
+                    roughness: 0.26,
+                    metalness: 0.2,
+                    transparent: true,
+                    opacity: opacityOverride !== null ? opacityOverride : (isAct ? 0.92 : 0.24)
+                })
+            );
+            if (userDataObj) {
+                mesh.userData = userDataObj;
+                hoverables.push(mesh);
+            }
+            group.add(mesh);
+            group.add(createWireBox(
+                widthX + 0.025,
+                heightY + 0.025,
+                depthZ + 0.025,
+                isAct ? wireHex : 0xf43f5e,
+                opacityOverride !== null ? opacityOverride * 0.85 : (isAct ? 0.85 : 0.3)
+            ));
+            return group;
+        }
+
+        // Rebuild all B Batch Blocks [S x D] and 4 Parallel Attention Heads in 3D space
+        function rebuildBatchBlocksScene() {
+            while (dynamicBatchGroup.children.length > 0) {
+                dynamicBatchGroup.remove(dynamicBatchGroup.children[0]);
+            }
+            hoverables = [];
+            clearFloatingLabels();
+
+            const B = currentBatchSize;
+            const S = currentSBlocks;
+            const actS = Math.min(activeTokensCount, S);
+            const sBlockGapRatio = 0.24;
+
+            // Top-level Stage Floating Labels (Clean Pedagogical Terminology)
+            addFloatingLabel(
+                "Embedding Lookup W ∈ ℝ^{1000×128}",
+                "nn.Embedding(1000, 128) + E_pos(32, 128)",
+                new THREE.Vector3(-54, 5.2, 0),
+                1,
+                "border-sky-400/60 text-sky-300"
+            );
+            addFloatingLabel(
+                `Stage 1: Token + Pos Embeddings`,
+                `Shape: [B=${B}, S=32, d_model=128]`,
+                new THREE.Vector3(-42.0, 5.9, 0),
+                1,
+                "border-amber-400/60 text-amber-300"
+            );
+            addFloatingLabel(
+                `2A. Linear Q, K, V Projections`,
+                `W_Q, W_K, W_V [128 → 4 Heads × 32]`,
+                new THREE.Vector3(-27.2, 6.7, 0),
+                2,
+                "border-cyan-400/70 text-cyan-200"
+            );
+            addFloatingLabel(
+                `2B. Scaled Dot-Product Attention`,
+                `softmax(Q_h K_h^T / √32 + mask) [S×S]`,
+                new THREE.Vector3(-16.2, 6.7, 0),
+                2,
+                "border-emerald-400/70 text-emerald-200"
+            );
+            addFloatingLabel(
+                `2C. Concat & Output Projection (W_O)`,
+                `Concat(C_0..C_3) [S×128] → Linear(128, 128)`,
+                new THREE.Vector3(-1.2, 6.7, 0),
+                2,
+                "border-pink-400/70 text-pink-200"
+            );
+            addFloatingLabel(
+                `Stage 3: Feed-Forward Network (FFN)`,
+                `3× Layers: Linear(128→256) + GELU → Linear(256→128)`,
+                new THREE.Vector3(16.5, 7.8, 0),
+                3,
+                "border-fuchsia-400/60 text-fuchsia-300"
+            );
+            addFloatingLabel(
+                `Stage 4: Masked Mean Pooling`,
+                `Averages Active Tokens → Sentence Vector [B=${B}, 128]`,
+                new THREE.Vector3(37.0, 5.6, 0),
+                4,
+                "border-emerald-400/60 text-emerald-300"
+            );
+            addFloatingLabel(
+                `Stage 5: L2 Norm & InfoNCE Space`,
+                `F.normalize(p=2) · Unit Hypersphere (||û_b||₂ = 1.0)`,
+                new THREE.Vector3(53.5, 6.8, 0),
+                5,
+                "border-emerald-400/60 text-emerald-200"
+            );
+
+            const slabWidthX = 5.6;
+            const cellSlotX = slabWidthX / S;
+            const subBlockWidthX = cellSlotX * (1.0 - sBlockGapRatio);
+            const slabDepthZ = 1.5;
+            const subBlockDepthZ = slabDepthZ * 0.78;
+            const heightD128 = 2.68;
+            const heightDFF256 = 5.0;
+
+            for (let b = 0; b < B; b++) {
+                const zBatch = getBatchZOffset(b, B);
+                const bColor = BATCH_COLORS[b % BATCH_COLORS.length];
+                const isFrontBatch = (b === B - 1);
+
+                // Dashed Z-axis divider plane between exploded batch blocks
+                if (explodeBatches && b < B - 1) {
+                    const zMid = (zBatch + getBatchZOffset(b + 1, B)) / 2;
+                    dynamicBatchGroup.add(createDashedDividerPlane(-2, zMid, 96, 9.5));
+                }
+
+                // =========================================================================
+                // STAGE 1: INPUT EMBEDDINGS BATCH BLOCK b OF SIZE [S=32 x D=128]
+                // =========================================================================
+                const s1Center = new THREE.Vector3(-42.0, 0.5, zBatch);
+                const s1OuterWire = createWireBox(slabWidthX + 0.36, heightD128 + 0.36, slabDepthZ + 0.25, bColor.hex, 0.88);
+                s1OuterWire.position.copy(s1Center);
+                dynamicBatchGroup.add(s1OuterWire);
+
+                for (let s = 0; s < S; s++) {
+                    const isAct = s < actS;
+                    const xSub = s1Center.x - slabWidthX / 2 + (s + 0.5) * cellSlotX;
+                    const subBlock = createFramedSubBlock(
+                        subBlockWidthX,
+                        heightD128,
+                        subBlockDepthZ,
+                        bColor.hex,
+                        0xffffff,
+                        isAct,
+                        null,
+                        {
+                            batchTitle: `Stage 1 (Input Embeddings) · Batch b=${b} · Token s=${s}`,
+                            shapeInfo: `Slice: x[b=${b}, s=${s}, 0:128] ∈ ℝ^{1×128}`,
+                            subInfo: isAct
+                                ? `token_embeddings + pos_embeddings (Active Token, mask=1)`
+                                : `Masked [PAD] Token (attention_mask=0)`
+                        }
+                    );
+                    subBlock.position.set(xSub, s1Center.y, zBatch);
+                    dynamicBatchGroup.add(subBlock);
+                }
+
+                // Lookup ray from W (-54) to Stage 1 Batch Block b
+                const lookupCurve = new THREE.QuadraticBezierCurve3(
+                    new THREE.Vector3(-52.8, 0.6, 0),
+                    new THREE.Vector3(-48.5, 1.2, zBatch * 0.6),
+                    new THREE.Vector3(s1Center.x - slabWidthX / 2 - 0.25, 0.5, zBatch)
+                );
+                dynamicBatchGroup.add(new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints(lookupCurve.getPoints(20)),
+                    new THREE.LineBasicMaterial({ color: bColor.hex, transparent: true, opacity: 0.55 })
+                ));
+
+                addFloatingLabel(
+                    `Batch ${b} Embeddings [32×128]`,
+                    `Sequence s=0..31 · d_model=128`,
+                    new THREE.Vector3(s1Center.x, 2.55, zBatch),
+                    1,
+                    bColor.css
+                );
+
+                // =========================================================================
+                // STAGE 2: MULTI-HEAD SELF-ATTENTION (W_Q,K,V -> QKV_h -> A_h -> C_h -> Concat -> W_O)
+                // =========================================================================
+                const wProjGatewayX = -32.2;
+                const qkvCenterX = -25.0;
+                const attnCenterX = -16.2;
+                const ctxCenterX = -9.0;
+                const concatCenterX = -2.8;
+                const outProjGatewayX = 1.6;
+                const unifiedMhaOutX = 5.4;
+
+                const headSlabW = 3.5;
+                const headSlotX = headSlabW / S;
+                const headSubW = headSlotX * (1.0 - sBlockGapRatio);
+                const headBandHeight = heightD128 / 4;
+
+                for (let h = 0; h < N_HEADS; h++) {
+                    const hSpec = HEAD_SPECS[h];
+                    const yH = getHeadYOffset(h, heightD128);
+                    const isHeadSelected = (selectedHeadFilter === -1 || selectedHeadFilter === h);
+                    const headAlpha = isHeadSelected ? 0.94 : 0.14;
+
+                    // 1. Linear Projection Rays from Input Embeddings [B, S, 128] into Head h's W_h^{Q,K,V}
+                    const fanOriginsY = showHeadSubdivisions ? [0.5 + 1.15, 0.5, 0.5 - 1.15] : [0.5];
+                    for (let fIdx = 0; fIdx < fanOriginsY.length; fIdx++) {
+                        const yOrig = fanOriginsY[fIdx];
+                        const broadcastCurve = new THREE.CubicBezierCurve3(
+                            new THREE.Vector3(s1Center.x + slabWidthX / 2 + 0.2, yOrig, zBatch),
+                            new THREE.Vector3(-36.8, yOrig, zBatch),
+                            new THREE.Vector3(-34.8, yH + (yOrig - 0.5) * 0.22, zBatch),
+                            new THREE.Vector3(wProjGatewayX - 0.65, yH, zBatch)
+                        );
+                        dynamicBatchGroup.add(new THREE.Line(
+                            new THREE.BufferGeometry().setFromPoints(broadcastCurve.getPoints(22)),
+                            new THREE.LineBasicMaterial({
+                                color: fIdx === 1 ? hSpec.hex : bColor.hex,
+                                transparent: true,
+                                opacity: isHeadSelected ? (fIdx === 1 ? 0.85 : 0.45) : 0.08
+                            })
+                        ));
+                    }
+
+                    // 2. Linear Projection Weights W_h^{Q,K,V} [128 -> 32]
+                    const wGatewayMesh = new THREE.Mesh(
+                        new THREE.BoxGeometry(1.15, headBandHeight * 1.25, 1.18),
+                        new THREE.MeshStandardMaterial({
+                            color: hSpec.hex,
+                            emissive: hSpec.emissive,
+                            emissiveIntensity: isHeadSelected ? 0.52 : 0.1,
+                            roughness: 0.2,
+                            metalness: 0.35,
+                            transparent: true,
+                            opacity: isHeadSelected ? 0.88 : 0.14
+                        })
+                    );
+                    wGatewayMesh.position.set(wProjGatewayX, yH, zBatch);
+                    wGatewayMesh.userData = {
+                        batchTitle: `Stage 2A · ${hSpec.name} Linear Projections (W_${h}^Q, W_${h}^K, W_${h}^V)`,
+                        shapeInfo: `Weight Matrices ∈ ℝ^{128×32} | Projects d_model=128 → d_k=32`,
+                        subInfo: `Transforms input embeddings into ${hSpec.name} Query, Key, and Value subspaces`
+                    };
+                    hoverables.push(wGatewayMesh);
+                    dynamicBatchGroup.add(wGatewayMesh);
+
+                    const wGatewayWire = createWireBox(1.22, headBandHeight * 1.32, 1.24, 0xffffff, isHeadSelected ? 0.85 : 0.15);
+                    wGatewayWire.position.copy(wGatewayMesh.position);
+                    dynamicBatchGroup.add(wGatewayWire);
+
+                    // Ray from W_h [128->32] into Q_h, K_h, V_h [S x 32]
+                    dynamicBatchGroup.add(new THREE.Line(
+                        new THREE.BufferGeometry().setFromPoints([
+                            new THREE.Vector3(wProjGatewayX + 0.62, yH, zBatch),
+                            new THREE.Vector3(qkvCenterX - headSlabW / 2 - 0.15, yH, zBatch)
+                        ]),
+                        new THREE.LineBasicMaterial({ color: hSpec.hex, transparent: true, opacity: isHeadSelected ? 0.85 : 0.12 })
+                    ));
+
+                    // 2A. Q_h, K_h, V_h Tensors [B, 4, S, 32]
+                    const qkvNames = ["Q", "K", "V"];
+                    const qkvZOffsets = [-0.40, 0.0, 0.40];
+
+                    const qkvFrame = createWireBox(headSlabW + 0.2, headBandHeight + 0.12, 1.28, hSpec.hex, isHeadSelected ? 0.65 : 0.12);
+                    qkvFrame.position.set(qkvCenterX, yH, zBatch);
+                    dynamicBatchGroup.add(qkvFrame);
+
+                    for (let qkvIdx = 0; qkvIdx < 3; qkvIdx++) {
+                        const zSub = zBatch + qkvZOffsets[qkvIdx];
+                        for (let s = 0; s < S; s++) {
+                            const isAct = s < actS;
+                            const xHSub = qkvCenterX - headSlabW / 2 + (s + 0.5) * headSlotX;
+                            const qkvBlock = createFramedSubBlock(
+                                headSubW,
+                                headBandHeight * 0.86,
+                                0.30,
+                                hSpec.hex,
+                                0xffffff,
+                                isAct,
+                                isAct ? headAlpha : headAlpha * 0.28,
+                                {
+                                    batchTitle: `Stage 2A · Batch b=${b} · ${hSpec.name} · ${qkvNames[qkvIdx]}_${h}[s=${s}]`,
+                                    shapeInfo: `Slice: ${qkvNames[qkvIdx]}[b=${b}, h=${h}, s=${s}, 0:32] ∈ ℝ^{1×32}`,
+                                    subInfo: `${qkvNames[qkvIdx]} vector in ${hSpec.name} (d_k = 32)`
+                                }
+                            );
+                            qkvBlock.position.set(xHSub, yH, zSub);
+                            dynamicBatchGroup.add(qkvBlock);
+                        }
+                    }
+
+                    if (isFrontBatch && headSplitFactor > 0.35) {
+                        addFloatingLabel(
+                            `${hSpec.name} (d_k=32)`,
+                            `Q_${h}, K_${h}, V_${h} [S×32]`,
+                            new THREE.Vector3((wProjGatewayX + qkvCenterX) * 0.5, yH + 0.58, zBatch + 0.72),
+                            2,
+                            hSpec.cssBorder
+                        );
+                    }
+
+                    // 2B. 4 Separate [S x S] 3D Attention Weight Matrices A_h
+                    const matSizeX = 2.65;
+                    const matSizeZ = 1.38;
+                    const cellW = matSizeX / S;
+                    const cellD = matSizeZ / S;
+                    const attnWeights = computeHeadAttentionMatrix(h, S, actS);
+
+                    const attnFrame = createWireBox(matSizeX + 0.14, 0.3 + headSplitFactor * 0.12, matSizeZ + 0.14, hSpec.hex, isHeadSelected ? 0.8 : 0.14);
+                    attnFrame.position.set(attnCenterX, yH, zBatch);
+                    dynamicBatchGroup.add(attnFrame);
+
+                    for (let si = 0; si < S; si++) {
+                        for (let sj = 0; sj < S; sj++) {
+                            const colActive = sj < actS;
+                            const rowActive = si < actS;
+                            const cellAct = colActive && rowActive;
+                            const wVal = attnWeights[si][sj];
+                            const cellHeight = cellAct ? (0.08 + wVal * 0.48) : 0.06;
+
+                            const cellMesh = new THREE.Mesh(
+                                new THREE.BoxGeometry(cellW * 0.8, cellHeight, cellD * 0.8),
+                                new THREE.MeshStandardMaterial({
+                                    color: cellAct ? hSpec.hex : 0x4c0519,
+                                    emissive: cellAct ? hSpec.emissive : 0x881337,
+                                    emissiveIntensity: cellAct ? (0.25 + wVal * 1.1) : 0.15,
+                                    transparent: true,
+                                    opacity: cellAct
+                                        ? (isHeadSelected ? Math.min(1.0, 0.35 + wVal * 1.3) : 0.1)
+                                        : (isHeadSelected ? 0.28 : 0.06)
+                                })
+                            );
+                            const cx = attnCenterX - matSizeX / 2 + (sj + 0.5) * cellW;
+                            const cz = zBatch - matSizeZ / 2 + (si + 0.5) * cellD;
+                            cellMesh.position.set(cx, yH + cellHeight / 2 - 0.08, cz);
+                            cellMesh.userData = {
+                                batchTitle: `Stage 2B (Attention Matrix) · Batch b=${b} · ${hSpec.name} · A_${h}[q=${si}, k=${sj}]`,
+                                shapeInfo: `Softmax Weight = ${wVal.toFixed(3)} | Slice: attn_weights[b=${b}, h=${h}, ${si}, ${sj}]`,
+                                subInfo: colActive
+                                    ? `${hSpec.patternName} · Active Key Column k=${sj}`
+                                    : `Masked [PAD] Key Column k=${sj} (scores = -1e9 → Softmax = 0.000)`
+                            };
+                            dynamicBatchGroup.add(cellMesh);
+                            hoverables.push(cellMesh);
+                        }
+                    }
+
+                    // 2C. Per-Head Context C_h [B, 4, S, 32]
+                    const ctxSlabW = 3.0;
+                    const ctxSlotX = ctxSlabW / S;
+                    const ctxSubW = ctxSlotX * (1.0 - sBlockGapRatio);
+
+                    const ctxFrame = createWireBox(ctxSlabW + 0.18, headBandHeight + 0.1, slabDepthZ * 0.72, hSpec.hex, isHeadSelected ? 0.75 : 0.14);
+                    ctxFrame.position.set(ctxCenterX, yH, zBatch);
+                    dynamicBatchGroup.add(ctxFrame);
+
+                    for (let s = 0; s < S; s++) {
+                        const isAct = s < actS;
+                        const xCSub = ctxCenterX - ctxSlabW / 2 + (s + 0.5) * ctxSlotX;
+                        const ctxBlock = createFramedSubBlock(
+                            ctxSubW,
+                            headBandHeight * 0.88,
+                            subBlockDepthZ * 0.72,
+                            hSpec.hex,
+                            0xffffff,
+                            isAct,
+                            isAct ? headAlpha : headAlpha * 0.28,
+                            {
+                                batchTitle: `Stage 2C (Head Context) · Batch b=${b} · ${hSpec.name} · C_${h}[s=${s}]`,
+                                shapeInfo: `Slice: context[b=${b}, h=${h}, s=${s}, 0:32] ∈ ℝ^{1×32}`,
+                                subInfo: `Weighted sum of Values (A_${h} @ V_${h}) for ${hSpec.name}`
+                            }
+                        );
+                        ctxBlock.position.set(xCSub, yH, zBatch);
+                        dynamicBatchGroup.add(ctxBlock);
+                    }
+
+                    // Connect QKV_h -> A_h -> C_h -> Concat
+                    dynamicBatchGroup.add(new THREE.Line(
+                        new THREE.BufferGeometry().setFromPoints([
+                            new THREE.Vector3(qkvCenterX + headSlabW / 2 + 0.1, yH, zBatch),
+                            new THREE.Vector3(attnCenterX - matSizeX / 2 - 0.1, yH, zBatch)
+                        ]),
+                        new THREE.LineBasicMaterial({ color: hSpec.hex, transparent: true, opacity: isHeadSelected ? 0.7 : 0.12 })
+                    ));
+
+                    dynamicBatchGroup.add(new THREE.Line(
+                        new THREE.BufferGeometry().setFromPoints([
+                            new THREE.Vector3(attnCenterX + matSizeX / 2 + 0.1, yH, zBatch),
+                            new THREE.Vector3(ctxCenterX - ctxSlabW / 2 - 0.1, yH, zBatch)
+                        ]),
+                        new THREE.LineBasicMaterial({ color: hSpec.hex, transparent: true, opacity: isHeadSelected ? 0.7 : 0.12 })
+                    ));
+
+                    const yConcatBand = 0.5 + (1.5 - h) * headBandHeight;
+                    const concatCurve = new THREE.CubicBezierCurve3(
+                        new THREE.Vector3(ctxCenterX + ctxSlabW / 2 + 0.1, yH, zBatch),
+                        new THREE.Vector3(ctxCenterX + 2.0, yH, zBatch),
+                        new THREE.Vector3(concatCenterX - slabWidthX * 0.34 - 1.0, yConcatBand, zBatch),
+                        new THREE.Vector3(concatCenterX - slabWidthX * 0.34 - 0.15, yConcatBand, zBatch)
+                    );
+                    dynamicBatchGroup.add(new THREE.Line(
+                        new THREE.BufferGeometry().setFromPoints(concatCurve.getPoints(24)),
+                        new THREE.LineBasicMaterial({
+                            color: hSpec.hex,
+                            transparent: true,
+                            opacity: isHeadSelected ? 0.82 : 0.12
+                        })
+                    ));
+                }
+
+                // 2C-1: Concatenated Multi-Head Context [C_0 | C_1 | C_2 | C_3] ∈ R^{S x 128}
+                const concatW = slabWidthX * 0.68;
+                const concatSlotX = concatW / S;
+                const concatSubW = concatSlotX * (1.0 - sBlockGapRatio);
+                const concatCenter = new THREE.Vector3(concatCenterX, 0.5, zBatch);
+                const concatOuterWire = createWireBox(concatW + 0.3, heightD128 + 0.3, slabDepthZ + 0.2, 0xf472b6, 0.85);
+                concatOuterWire.position.copy(concatCenter);
+                dynamicBatchGroup.add(concatOuterWire);
+
+                for (let s = 0; s < S; s++) {
+                    const isAct = s < actS;
+                    const xSub = concatCenter.x - concatW / 2 + (s + 0.5) * concatSlotX;
+                    const concatBlock = createMultiHeadLayeredSubBlock(
+                        concatSubW,
+                        heightD128,
+                        subBlockDepthZ * 0.85,
+                        bColor.hex,
+                        0xffffff,
+                        isAct,
+                        true,
+                        b,
+                        s,
+                        "Stage 2C (Concatenated Heads [C₀|C₁|C₂|C₃])"
+                    );
+                    concatBlock.position.set(xSub, concatCenter.y, zBatch);
+                    dynamicBatchGroup.add(concatBlock);
+                }
+
+                // 2C-2: Output Projection Layer self.out_proj (W_O ∈ R^{128 x 128})
+                const outProjGateway = new THREE.Mesh(
+                    new THREE.BoxGeometry(1.15, heightD128 + 0.35, 1.35),
+                    new THREE.MeshStandardMaterial({
+                        color: 0x6366f1,
+                        emissive: 0x4338ca,
+                        emissiveIntensity: 0.48,
+                        roughness: 0.25,
+                        metalness: 0.3,
+                        transparent: true,
+                        opacity: 0.88
+                    })
+                );
+                outProjGateway.position.set(outProjGatewayX, 0.5, zBatch);
+                outProjGateway.userData = {
+                    batchTitle: `Stage 2C · Output Projection self.out_proj (W_O ∈ ℝ^{128×128}) · Batch b=${b}`,
+                    shapeInfo: `nn.Linear(128, 128) | Projects Concat(C_0..C_3) → Attention Output [S, 128]`,
+                    subInfo: `Combines features learned across all 4 attention heads`
+                };
+                hoverables.push(outProjGateway);
+                dynamicBatchGroup.add(outProjGateway);
+
+                const outProjWire = createWireBox(1.22, heightD128 + 0.42, 1.42, 0xa5b4fc, 0.85);
+                outProjWire.position.copy(outProjGateway.position);
+                dynamicBatchGroup.add(outProjWire);
+
+                // 2C-3: Attention Output Tensor [B, S, 128]
+                const mhaOutW = slabWidthX * 0.68;
+                const mhaSlotX = mhaOutW / S;
+                const mhaSubW = mhaSlotX * (1.0 - sBlockGapRatio);
+                const mhaOutCenter = new THREE.Vector3(unifiedMhaOutX, 0.5, zBatch);
+                const mhaOutWire = createWireBox(mhaOutW + 0.3, heightD128 + 0.3, slabDepthZ + 0.2, bColor.hex, 0.88);
+                mhaOutWire.position.copy(mhaOutCenter);
+                dynamicBatchGroup.add(mhaOutWire);
+
+                for (let s = 0; s < S; s++) {
+                    const isAct = s < actS;
+                    const xSub = mhaOutCenter.x - mhaOutW / 2 + (s + 0.5) * mhaSlotX;
+                    const unifiedPostMhaBlock = createFramedSubBlock(
+                        mhaSubW,
+                        heightD128,
+                        subBlockDepthZ * 0.85,
+                        bColor.hex,
+                        0xffffff,
+                        isAct,
+                        null,
+                        {
+                            batchTitle: `Stage 2C (Attention Output + LayerNorm) · Batch b=${b} · Token s=${s}`,
+                            shapeInfo: `Slice: attn_out[b=${b}, s=${s}, 0:128] ∈ ℝ^{1×128}`,
+                            subInfo: `Contextualized token representation after self.out_proj and residual LayerNorm`
+                        }
+                    );
+                    unifiedPostMhaBlock.position.set(xSub, mhaOutCenter.y, zBatch);
+                    dynamicBatchGroup.add(unifiedPostMhaBlock);
+                }
+
+                // =========================================================================
+                // STAGE 3: 3x ENCODER BLOCKS & FFN EXPANSION (128 -> 256 -> 128)
+                // =========================================================================
+                const ffnCenter = new THREE.Vector3(13.0, 0.8, zBatch);
+                const ffnOuterWire = createWireBox(slabWidthX + 0.4, heightDFF256 + 0.4, slabDepthZ + 0.25, 0xe879f9, 0.82);
+                ffnOuterWire.position.copy(ffnCenter);
+                dynamicBatchGroup.add(ffnOuterWire);
+
+                for (let s = 0; s < S; s++) {
+                    const isAct = s < actS;
+                    const xSub = ffnCenter.x - slabWidthX / 2 + (s + 0.5) * cellSlotX;
+                    const ffnSub = createFramedSubBlock(
+                        subBlockWidthX,
+                        heightDFF256,
+                        subBlockDepthZ,
+                        0xe879f9,
+                        0xf5d0fe,
+                        isAct,
+                        null,
+                        {
+                            batchTitle: `Stage 3 (FFN Expansion d_ff=256) · Batch b=${b} · Token s=${s}`,
+                            shapeInfo: `Slice: ffn_hidden[b=${b}, s=${s}, 0:256] ∈ ℝ^{1×256}`,
+                            subInfo: `Position-wise Feed-Forward intermediate activation: GELU(Linear(128 → 256))`
+                        }
+                    );
+                    ffnSub.position.set(xSub, ffnCenter.y, zBatch);
+                    dynamicBatchGroup.add(ffnSub);
+                }
+
+                const outCenter = new THREE.Vector3(22.2, 0.5, zBatch);
+                const outOuterWire = createWireBox(slabWidthX + 0.4, heightD128 + 0.4, slabDepthZ + 0.25, bColor.hex, 0.88);
+                outOuterWire.position.copy(outCenter);
+                dynamicBatchGroup.add(outOuterWire);
+
+                for (let s = 0; s < S; s++) {
+                    const isAct = s < actS;
+                    const xSub = outCenter.x - slabWidthX / 2 + (s + 0.5) * cellSlotX;
+                    const outSub = createFramedSubBlock(
+                        subBlockWidthX,
+                        heightD128,
+                        subBlockDepthZ,
+                        bColor.hex,
+                        0xffffff,
+                        isAct,
+                        null,
+                        {
+                            batchTitle: `Stage 3 (Encoder Hidden States) · Batch b=${b} · Token s=${s}`,
+                            shapeInfo: `Slice: hidden_states[b=${b}, s=${s}, 0:128] ∈ ℝ^{1×128}`,
+                            subInfo: `Contextualized token embedding after 3 stacked TransformerEncoderBlocks + final_norm`
+                        }
+                    );
+                    outSub.position.set(xSub, outCenter.y, zBatch);
+                    dynamicBatchGroup.add(outSub);
+                }
+
+                // Stacked Encoder Layers 2 & 3 Wireframes
+                for (let l = 1; l <= 2; l++) {
+                    const layerGhost = createWireBox(15.6, 0.68, slabDepthZ, bColor.hex, 0.35);
+                    layerGhost.position.set(17.6, 4.2 + l * 1.1, zBatch);
+                    dynamicBatchGroup.add(layerGhost);
+                }
+
+                addFloatingLabel(
+                    `Batch ${b} Hidden States [32×128]`,
+                    `After 3× Encoder Layers`,
+                    new THREE.Vector3(outCenter.x, 2.55, zBatch),
+                    3,
+                    bColor.css
+                );
+
+                // =========================================================================
+                // STAGE 4: MASKED MEAN POOLING ([B, S, 128] -> [B, 128])
+                // =========================================================================
+                const poolCenter = new THREE.Vector3(37.0, 0.5, zBatch);
+                const poolSubBlock = createFramedSubBlock(
+                    1.35,
+                    heightD128 + 0.45,
+                    1.35,
+                    bColor.hex,
+                    0x34d399,
+                    true,
+                    null,
+                    {
+                        batchTitle: `Stage 4 (Pooled Sentence Embedding u_${b}) · Batch b=${b}`,
+                        shapeInfo: `Slice: pooled[b=${b}, 0:128] ∈ ℝ^{1×128}`,
+                        subInfo: `Mean-pooled across ${actS}/${S} active non-padding tokens`
+                    }
+                );
+                poolSubBlock.position.copy(poolCenter);
+                dynamicBatchGroup.add(poolSubBlock);
+
+                addFloatingLabel(
+                    `Sentence Vector u_${b} [1×128]`,
+                    `Mean Pooled (${actS}/${S} active tokens)`,
+                    new THREE.Vector3(37.0, 3.0, zBatch),
+                    4,
+                    bColor.css
+                );
+
+                for (let s = 0; s < S; s++) {
+                    const isAct = s < actS;
+                    const xStart = outCenter.x - slabWidthX / 2 + (s + 0.5) * cellSlotX;
+                    const startPt = new THREE.Vector3(xStart, 0.5, zBatch);
+                    const endPt = new THREE.Vector3(poolCenter.x - 0.75, 0.5, zBatch);
+                    const arcHeight = isAct ? ((s - (actS - 1) / 2) * 0.32) : -1.35;
+                    const midPt = new THREE.Vector3((xStart + poolCenter.x) * 0.5, 0.5 + arcHeight, zBatch);
+
+                    const curve = new THREE.QuadraticBezierCurve3(startPt, midPt, endPt);
+                    dynamicBatchGroup.add(new THREE.Line(
+                        new THREE.BufferGeometry().setFromPoints(curve.getPoints(18)),
+                        new THREE.LineBasicMaterial({
+                            color: isAct ? 0x34d399 : 0xf43f5e,
+                            transparent: true,
+                            opacity: isAct ? 0.78 : 0.14
+                        })
+                    ));
+                }
+
+                // =========================================================================
+                // STAGE 5: PROJECT POOLED VECTOR u_b ONTO L2 UNIT HYPERSPHERE
+                // =========================================================================
+                const angleTheta = (b / Math.max(1, B)) * Math.PI * 1.1 - 0.5;
+                const bDir = new THREE.Vector3(
+                    -0.35 + Math.cos(angleTheta) * 0.5,
+                    0.35 + Math.sin(angleTheta) * 0.55,
+                    (b - (B - 1) / 2) * 0.35
+                ).normalize();
+
+                const tipWorldOffset = setVectorDirection(batchUnitVectors[b], bDir);
+                batchUnitVectors[b].group.visible = true;
+
+                const sphereCurve = new THREE.QuadraticBezierCurve3(
+                    poolCenter.clone().add(new THREE.Vector3(0.7, 0, 0)),
+                    new THREE.Vector3(45.0, 1.5, zBatch * 0.5),
+                    sphereCenter.clone().add(tipWorldOffset)
+                );
+                dynamicBatchGroup.add(new THREE.Line(
+                    new THREE.BufferGeometry().setFromPoints(sphereCurve.getPoints(20)),
+                    new THREE.LineBasicMaterial({ color: bColor.hex, transparent: true, opacity: 0.68 })
+                ));
+            }
+
+            for (let b = B; b < 6; b++) {
+                batchUnitVectors[b].group.visible = false;
+            }
+
+            drawAttentionHeatmap2D();
+        }
+
+        /***********************************************************************
+         * 5. LEFT SIDEBAR CONTROLS & SIGNAL PARTICLES
+         ***********************************************************************/
+        function syncLeftSidebarUI() {
+            const B = currentBatchSize;
+            const S = currentSBlocks;
+            if (activeTokensCount > S) {
+                activeTokensCount = S;
+                document.getElementById('active-tokens-slider').value = S;
+            }
+            document.getElementById('active-tokens-slider').max = S;
+
+            const actS = activeTokensCount;
+            const padS = S - actS;
+
+            document.getElementById('header-b-val').textContent = B;
+            document.getElementById('header-s-val').textContent = S;
+            document.getElementById('header-hierarchy-pill').textContent = `B=${B} Blocks × [S=32, D=128] · H=4 Heads (d_k=32)`;
+
+            document.getElementById('batch-size-badge').textContent = `B = ${B} Block${B > 1 ? 's' : ''}`;
+            document.getElementById('s-blocks-badge').textContent = `${S} Displayed (S=32)`;
+            document.getElementById('active-token-badge').textContent = `${actS} Active / ${padS} [PAD]`;
+            document.getElementById('sep-pos-label').textContent = `s=${Math.max(0, actS - 1)} [SEP]`;
+            document.getElementById('last-s-label').textContent = `s=${S - 1} ${padS > 0 ? '[PAD]' : '[ACT]'}`;
+
+            const splitPct = Math.round(headSplitFactor * 100);
+            document.getElementById('head-split-badge').textContent = splitPct === 0
+                ? `0% Combined [B,S,128]`
+                : `${splitPct}% Split [B,4,S,32]`;
+
+            // Batch Blocks color key
+            const batchListEl = document.getElementById('batch-blocks-list');
+            batchListEl.innerHTML = '';
+            for (let b = 0; b < B; b++) {
+                const c = BATCH_COLORS[b % BATCH_COLORS.length];
+                const pill = document.createElement('div');
+                pill.className = `px-2 py-1 rounded text-[10px] mono border ${c.css} flex items-center justify-between`;
+                pill.innerHTML = `<span class="font-bold">Batch ${b}</span><span>[32×128]</span>`;
+                batchListEl.appendChild(pill);
+            }
+
+            // S-Block Active vs [PAD] visual strip
+            const stripEl = document.getElementById('token-strip-bar');
+            stripEl.innerHTML = '';
+            for (let s = 0; s < S; s++) {
+                const isAct = s < actS;
+                const cell = document.createElement('div');
+                cell.className = `flex-1 h-4 rounded-[3px] text-[9px] mono flex items-center justify-center font-bold transition ${
+                    isAct
+                        ? (s === 0 || s === actS - 1
+                            ? 'bg-emerald-500/80 text-slate-950 border border-emerald-300'
+                            : 'bg-sky-500/80 text-slate-950 border border-sky-300')
+                        : 'bg-rose-950/80 text-rose-400 border border-rose-500/40'
+                }`;
+                cell.textContent = s;
+                stripEl.appendChild(cell);
+            }
+
+            updateInspectorForStage(currentStage);
+        }
+
+        // Animated Forward-Pass Signal Particles
+        const NUM_PARTICLES = 240;
+        const particleGeo = new THREE.BufferGeometry();
+        const particlePositions = new Float32Array(NUM_PARTICLES * 3);
+        const particleColors = new Float32Array(NUM_PARTICLES * 3);
+        const particleMeta = [];
+
+        for (let i = 0; i < NUM_PARTICLES; i++) {
+            particleMeta.push({
+                progress: Math.random(),
+                speed: 0.0024 + Math.random() * 0.0014,
+                batchSlot: i % 6,
+                headSlot: i % 4
+            });
+        }
+        particleGeo.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+        particleGeo.setAttribute('color', new THREE.BufferAttribute(particleColors, 3));
+
+        const particleSystem = new THREE.Points(
+            particleGeo,
+            new THREE.PointsMaterial({ size: 0.48, vertexColors: true, transparent: true, opacity: 0.92 })
+        );
+        scene.add(particleSystem);
+
+        function updateSignalParticles() {
+            const posArr = particleGeo.attributes.position.array;
+            const colArr = particleGeo.attributes.color.array;
+            const B = currentBatchSize;
+
+            const lookupColor = new THREE.Color(0x38bdf8);
+            const outProjColor = new THREE.Color(0x6366f1);
+            const ffnColor = new THREE.Color(0xe879f9);
+            const poolRayColor = new THREE.Color(0x34d399);
+            const tempColor = new THREE.Color();
+
+            for (let i = 0; i < NUM_PARTICLES; i++) {
+                const m = particleMeta[i];
+                if (isFlowPlaying) {
+                    m.progress += m.speed;
+                    if (m.progress > 1.0) m.progress = 0.0;
+                }
+
+                const bIdx = m.batchSlot % B;
+                const zBatch = getBatchZOffset(bIdx, B);
+                const bColor = new THREE.Color(BATCH_COLORS[bIdx % BATCH_COLORS.length].hex);
+
+                // If a single head filter is active, route particles through that active head
+                const hSlot = selectedHeadFilter >= 0 ? selectedHeadFilter : m.headSlot;
+                const hColor = new THREE.Color(HEAD_SPECS[hSlot].hex);
+
+                const x = -54.0 + m.progress * 107.5;
+                let y = 0.5;
+                let z = zBatch;
+
+                const targetHeadY = getHeadYOffset(hSlot, 2.68);
+                const yConcatBand = 0.5 + (1.5 - hSlot) * (2.68 / 4);
+
+                // 1. Lookup Table W (-54.0) -> Stage 1 Input Embeddings (-44.8 to -39.2)
+                if (x < -44.8) {
+                    const t = Math.max(0, Math.min(1, (x + 54.0) / 9.2));
+                    const invT = 1 - t;
+                    // Follow quadratic lookup curve from W (z=0) into Batch b (z=zBatch)
+                    y = (invT * invT * 0.6) + (2 * invT * t * 1.2) + (t * t * 0.5);
+                    z = (2 * invT * t * (zBatch * 0.6)) + (t * t * zBatch);
+                    tempColor.copy(lookupColor).lerp(bColor, t);
+                }
+                else if (x < -39.2) {
+                    // Inside Stage 1 Input Embeddings [B, S, 128]
+                    y = 0.5;
+                    z = zBatch;
+                    tempColor.copy(bColor);
+                }
+                // 2. Stage 1 Exit (-39.2) -> Bifurcating into 2A W_Q,K,V Gateways (-32.2)
+                else if (x < -32.2) {
+                    const t = Math.max(0, Math.min(1, (x + 39.2) / 7.0));
+                    const smoothT = t * t * (3 - 2 * t);
+                    y = 0.5 * (1 - smoothT) + targetHeadY * smoothT;
+                    z = zBatch;
+                    // Transition from Batch color into the 4 Head colors as particles enter 2A
+                    tempColor.copy(bColor).lerp(hColor, smoothT);
+                }
+                // 3. Stage 2A (W_Q,K,V & Q,K,V: -32.2 to -22.5), 2B (Attn: -16.2), 2C (Context: -7.5)
+                else if (x < -7.5) {
+                    // Fully divided into the 4 parallel head lanes starting at 2A
+                    y = targetHeadY;
+                    if (x >= -26.8 && x <= -23.2) {
+                        // Spread across Q, K, V sub-slices inside 2A
+                        const qkvSlot = (i % 3) - 1;
+                        z = zBatch + qkvSlot * 0.40;
+                    } else {
+                        z = zBatch;
+                    }
+                    tempColor.copy(hColor);
+                }
+                // 4. Stage 2C Context Exit (-7.5) -> Converging into 4-Striped Concat Block (-4.7 to -0.9)
+                else if (x < -0.9) {
+                    if (x < -4.7) {
+                        const t = Math.max(0, Math.min(1, (x + 7.5) / 2.8));
+                        const smoothT = t * t * (3 - 2 * t);
+                        y = targetHeadY * (1 - smoothT) + yConcatBand * smoothT;
+                    } else {
+                        y = yConcatBand;
+                    }
+                    z = zBatch;
+                    tempColor.copy(hColor);
+                }
+                // 5. Concat Exit (-0.9) -> Output Projection W_O (1.6) -> Unified Attention Output (3.5 to 7.8)
+                else if (x < 7.8) {
+                    if (x < 1.6) {
+                        const t = Math.max(0, Math.min(1, (x + 0.9) / 2.5));
+                        y = yConcatBand * (1 - t) + 0.5 * t;
+                        tempColor.copy(hColor).lerp(outProjColor, t);
+                    } else {
+                        const t = Math.max(0, Math.min(1, (x - 1.6) / 2.2));
+                        y = 0.5;
+                        tempColor.copy(outProjColor).lerp(bColor, t);
+                    }
+                    z = zBatch;
+                }
+                // 6. Stage 3 FFN Expansion (128 -> 256 -> 128 at x=13.0) & Encoder Hidden States (x=22.2)
+                else if (x < 25.0) {
+                    if (x < 18.2) {
+                        const ffnPhase = Math.max(0, Math.min(1, (x - 7.8) / 10.4));
+                        const ffnEnv = Math.sin(ffnPhase * Math.PI);
+                        y = 0.5 + (m.headSlot - 1.5) * 1.35 * ffnEnv;
+                        tempColor.copy(bColor).lerp(ffnColor, ffnEnv);
+                    } else {
+                        y = 0.5;
+                        tempColor.copy(bColor);
+                    }
+                    z = zBatch;
+                }
+                // 7. Stage 4 Masked Mean Pooling Rays (25.0 to 36.2) -> Pooled Sentence Vector u_b (37.0)
+                else if (x < 37.7) {
+                    if (x < 36.2) {
+                        const tPool = Math.max(0, Math.min(1, (x - 25.0) / 11.2));
+                        const arc = Math.sin(tPool * Math.PI) * ((m.headSlot - 1.5) * 0.42);
+                        y = 0.5 + arc;
+                        tempColor.copy(bColor).lerp(poolRayColor, Math.sin(tPool * Math.PI));
+                    } else {
+                        y = 0.5;
+                        tempColor.copy(bColor);
+                    }
+                    z = zBatch;
+                }
+                // 8. Stage 5 L2 Normalization onto Unit Hypersphere (37.7 to 53.5)
+                else {
+                    const tSphere = Math.max(0, Math.min(1, (x - 37.7) / 15.8));
+                    const invT = 1 - tSphere;
+                    const tipPos = batchUnitVectors[bIdx].tip.position;
+                    const endY = sphereCenter.y + tipPos.y;
+                    const endZ = sphereCenter.z + tipPos.z;
+
+                    y = (invT * invT * 0.5) + (2 * invT * tSphere * 1.5) + (tSphere * tSphere * endY);
+                    z = (invT * invT * zBatch) + (2 * invT * tSphere * (zBatch * 0.5)) + (tSphere * tSphere * endZ);
+                    tempColor.copy(bColor);
+                }
+
+                posArr[i * 3] = x;
+                posArr[i * 3 + 1] = y;
+                posArr[i * 3 + 2] = z;
+
+                colArr[i * 3] = tempColor.r;
+                colArr[i * 3 + 1] = tempColor.g;
+                colArr[i * 3 + 2] = tempColor.b;
+            }
+
+            particleGeo.attributes.position.needsUpdate = true;
+            particleGeo.attributes.color.needsUpdate = true;
+        }
+
+        /***********************************************************************
+         * 6. UI EVENT LISTENERS & MAIN ANIMATION LOOP
+         ***********************************************************************/
+        document.querySelectorAll('.stage-btn').forEach(btn => {
+            btn.addEventListener('click', () => transitionToStage(parseInt(btn.dataset.stage)));
+        });
+
+        document.getElementById('head-split-slider').addEventListener('input', (e) => {
+            headSplitFactor = parseInt(e.target.value) / 100;
+            syncLeftSidebarUI();
+            rebuildBatchBlocksScene();
+        });
+
+        document.getElementById('btn-combine-heads').addEventListener('click', () => {
+            headSplitFactor = 0.0;
+            document.getElementById('head-split-slider').value = 0;
+            syncLeftSidebarUI();
+            rebuildBatchBlocksScene();
+        });
+
+        document.getElementById('btn-split-heads').addEventListener('click', () => {
+            headSplitFactor = 1.0;
+            document.getElementById('head-split-slider').value = 100;
+            syncLeftSidebarUI();
+            rebuildBatchBlocksScene();
+            transitionToStage(2);
+        });
+
+        document.querySelectorAll('.head-filter-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                selectedHeadFilter = parseInt(btn.dataset.head);
+                if (selectedHeadFilter >= 0) {
+                    heatmapHeadIdx = selectedHeadFilter;
+                }
+                document.getElementById('selected-head-label').textContent = selectedHeadFilter === -1
+                    ? "All 4 Heads"
+                    : `${HEAD_SPECS[selectedHeadFilter].name} (${HEAD_SPECS[selectedHeadFilter].dims})`;
+
+                document.querySelectorAll('.head-filter-btn').forEach(b => {
+                    const isSel = parseInt(b.dataset.head) === selectedHeadFilter;
+                    b.classList.toggle('ring-2', isSel);
+                    b.classList.toggle('ring-white', isSel);
+                });
+                rebuildBatchBlocksScene();
+            });
+        });
+
+        document.getElementById('batch-size-slider').addEventListener('input', (e) => {
+            currentBatchSize = parseInt(e.target.value);
+            syncLeftSidebarUI();
+            rebuildBatchBlocksScene();
+        });
+
+        document.getElementById('explode-batches-toggle').addEventListener('change', (e) => {
+            explodeBatches = e.target.checked;
+            rebuildBatchBlocksScene();
+        });
+
+        document.getElementById('s-blocks-slider').addEventListener('input', (e) => {
+            currentSBlocks = parseInt(e.target.value);
+            if (activeTokensCount > currentSBlocks) {
+                activeTokensCount = currentSBlocks;
+            }
+            syncLeftSidebarUI();
+            rebuildBatchBlocksScene();
+        });
+
+        document.getElementById('active-tokens-slider').addEventListener('input', (e) => {
+            activeTokensCount = parseInt(e.target.value);
+            syncLeftSidebarUI();
+            rebuildBatchBlocksScene();
+        });
+
+        document.getElementById('show-head-cuts-toggle').addEventListener('change', (e) => {
+            showHeadSubdivisions = e.target.checked;
+            rebuildBatchBlocksScene();
+        });
+
+        document.getElementById('contrastive-slider').addEventListener('input', (e) => {
+            updateContrastiveVectors(parseFloat(e.target.value));
+        });
+
+        document.getElementById('toggle-flow-btn').addEventListener('click', () => {
+            isFlowPlaying = !isFlowPlaying;
+            document.getElementById('flow-text').textContent = isFlowPlaying ? "Pause Signal" : "Play Signal";
+            document.getElementById('flow-dot').className = isFlowPlaying
+                ? "w-2 h-2 rounded-full bg-emerald-400 animate-pulse"
+                : "w-2 h-2 rounded-full bg-amber-400";
+        });
+
+        document.getElementById('toggle-labels-btn').addEventListener('click', (e) => {
+            showLabels = !showLabels;
+            e.target.textContent = `Labels: ${showLabels ? 'ON' : 'OFF'}`;
+            labelsContainer.style.display = showLabels ? 'block' : 'none';
+        });
+
+        const tourHeader = document.getElementById('tour-header');
+        const controlsPanel = document.getElementById('controls-panel');
+        const inspectorPanel = document.getElementById('inspector-panel');
+        const controlsButton = document.getElementById('toggle-controls-btn');
+        const inspectorButton = document.getElementById('toggle-inspector-btn');
+
+        function syncPanelTop() {
+            document.documentElement.style.setProperty('--panel-top', `${Math.ceil(tourHeader.getBoundingClientRect().bottom + 8)}px`);
+        }
+
+        function toggleMobilePanel(panel, button, otherPanel, otherButton) {
+            const isOpening = !panel.classList.contains('panel-open');
+            panel.classList.toggle('panel-open', isOpening);
+            button.setAttribute('aria-expanded', String(isOpening));
+            otherPanel.classList.remove('panel-open');
+            otherButton.setAttribute('aria-expanded', 'false');
+        }
+
+        controlsButton.addEventListener('click', () => toggleMobilePanel(controlsPanel, controlsButton, inspectorPanel, inspectorButton));
+        inspectorButton.addEventListener('click', () => toggleMobilePanel(inspectorPanel, inspectorButton, controlsPanel, controlsButton));
+        new ResizeObserver(syncPanelTop).observe(tourHeader);
+        syncPanelTop();
+
+        function updateFloatingLabelsScreenCoords() {
+            if (!showLabels) return;
+            const halfW = window.innerWidth / 2;
+            const halfH = window.innerHeight / 2;
+
+            for (const item of floatingLabels) {
+                const proj = item.worldPos.clone().project(camera);
+                if (proj.z > 1) {
+                    item.el.style.opacity = '0';
+                    continue;
+                }
+                const x = (proj.x * halfW) + halfW;
+                const y = -(proj.y * halfH) + halfH;
+                item.el.style.left = `${x}px`;
+                item.el.style.top = `${y}px`;
+                item.el.style.opacity = '1';
+            }
+        }
+
+        // Initialize Scene and Controls
+        updateContrastiveVectors(85);
+        syncLeftSidebarUI();
+        rebuildBatchBlocksScene();
+        transitionToStage(0);
+
+        const clock = new THREE.Clock();
+        function animate() {
+            requestAnimationFrame(animate);
+            const elapsed = clock.getElapsedTime();
+
+            if (camFlight.active) {
+                camera.position.lerp(camFlight.desiredPos, 0.07);
+                controls.target.lerp(camFlight.desiredTarget, 0.07);
+                if (camera.position.distanceTo(camFlight.desiredPos) < 0.15) {
+                    camFlight.active = false;
+                }
+            }
+
+            controls.update();
+            unitSphereWire.rotation.y = elapsed * 0.12;
+            updateSignalParticles();
+            updateFloatingLabelsScreenCoords();
+            renderer.render(scene, camera);
+        }
+
+        window.onload = function () {
+            renderStageKaTeX(currentStage);
+            animate();
+        };
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>

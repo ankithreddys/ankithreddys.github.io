@@ -7,6 +7,7 @@
 import './Blogs.css'
 
 function Blogs() {
+  const embeddingModelVisualizerUrl = '/blogs/embedding-model-training/visualizer.html'
   const bpeMediumUrl = 'https://medium.com/@ankithreddy653/how-machines-learn-to-read-byte-pair-encoding-explained-ba4bd39c60ee'
   const bpeVisualizerUrl = '/blogs/bpe/visualizer.html'
   const wordsToTensorMediumUrl = 'https://medium.com/@ankithreddy653/from-words-to-tensors-how-llms-actually-read-text-7048eef833ae'
@@ -26,6 +27,34 @@ function Blogs() {
         </div>
 
         <div className="blogs-list" aria-label="Blogs list">
+          <article className="blogs-card">
+            <header className="blog-post-header">
+              <p className="blog-post-meta">Interactive visualizer · Medium article coming soon</p>
+              <h3 className="blog-post-title">Text Embedding Model Training: A 3D Explorer</h3>
+              <p className="blog-post-excerpt">
+                Explore how token and positional embeddings move through multi-head attention,
+                encoder layers, masked mean pooling, and contrastive training on the unit sphere.
+              </p>
+              <div className="blog-post-tags" aria-label="Post tags">
+                <span className="blog-tag">Embeddings</span>
+                <span className="blog-tag">Transformers</span>
+                <span className="blog-tag">Contrastive Learning</span>
+              </div>
+            </header>
+
+            <div className="blog-actions">
+              <a
+                href={embeddingModelVisualizerUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="blog-action-link blog-action-link-secondary"
+                aria-label="Open text embedding model training 3D visualizer"
+              >
+                Open 3D Visualizer
+              </a>
+            </div>
+          </article>
+
           <article className="blogs-card">
             <header className="blog-post-header">
               <p className="blog-post-meta">March 2026 · 18 min read</p>
