@@ -29,7 +29,7 @@ function Leadership() {
         'Presented “The ML Edge” to approximately 500 attendees, introducing supervised, unsupervised, and reinforcement learning.',
         'Explained why evaluating AI models matters alongside building them, with a focus on AI ethics and justice.',
       ],
-      filePath: '/VBIT%20LOA.pdf',
+      filePath: '/documents/VBIT%20LOA.pdf',
     },
   ]
 

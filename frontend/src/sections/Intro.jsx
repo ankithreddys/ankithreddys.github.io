@@ -136,7 +136,7 @@ function Intro() {
             </p>
             <div className="intro-buttons">
               <a href="#projects" className="btn btn-primary">Explore my work <span aria-hidden="true">↗</span></a>
-              <a href="/RESEARCH_CV.pdf" className="btn btn-outline" target="_blank" rel="noopener noreferrer">Research CV</a>
+              <a href="/documents/RESEARCH_CV.pdf" className="btn btn-outline" target="_blank" rel="noopener noreferrer">Research CV</a>
             </div>
             <div className="intro-attention">
               <BrandMark />

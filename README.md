@@ -6,7 +6,15 @@ A static React + Vite portfolio website showcasing Ankith's experience, projects
 
 - Portfolio sections for experience, projects, skills, leadership, writing, and contact
 - Contact form that opens a prefilled email draft in the visitor's email app
-- Resume served from `frontend/public/ANKITH SUBHANPURAM.pdf`
+- Research CV and supporting PDFs served from `frontend/public/documents/`
+
+## Public files
+
+- Blog visualizers: `frontend/public/blogs/<topic>/visualizer.html`
+- CV and supporting PDFs: `frontend/public/documents/`
+- Shared static assets: `frontend/public/assets/`
+
+The portfolio links to the new URLs. Previous root-level URLs redirect to the new locations on Vercel.
 
 ## Tech Stack
 

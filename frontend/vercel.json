@@ -1,4 +1,12 @@
 {
+  "redirects": [
+    { "source": "/bpe-visualizer.html", "destination": "/blogs/bpe/visualizer.html", "permanent": true },
+    { "source": "/word-to-tensor.html", "destination": "/blogs/word-to-tensor/visualizer.html", "permanent": true },
+    { "source": "/RESEARCH_CV.pdf", "destination": "/documents/RESEARCH_CV.pdf", "permanent": true },
+    { "source": "/VBIT%20LOA.pdf", "destination": "/documents/VBIT%20LOA.pdf", "permanent": true },
+    { "source": "/ANKITH%20SUBHANPURAM.pdf", "destination": "/documents/ANKITH%20SUBHANPURAM.pdf", "permanent": true },
+    { "source": "/vite.svg", "destination": "/assets/vite.svg", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/((?!.*\\.).*)", "destination": "/" }
   ]

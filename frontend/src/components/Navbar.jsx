@@ -67,7 +67,7 @@ function Navbar({ theme, onToggleTheme }) {
     { name: 'Skills', href: '/#skills' },
     { name: 'Leadership', href: '/#leadership' },
     { name: 'Contact', href: '/#contact' },
-    { name: 'Research CV', href: '/RESEARCH_CV.pdf' },
+    { name: 'Research CV', href: '/documents/RESEARCH_CV.pdf' },
   ]
 
   return (

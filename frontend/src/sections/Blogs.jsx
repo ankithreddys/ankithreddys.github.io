@@ -8,9 +8,9 @@ import './Blogs.css'
 
 function Blogs() {
   const bpeMediumUrl = 'https://medium.com/@ankithreddy653/how-machines-learn-to-read-byte-pair-encoding-explained-ba4bd39c60ee'
-  const bpeVisualizerUrl = '/bpe-visualizer.html'
+  const bpeVisualizerUrl = '/blogs/bpe/visualizer.html'
   const wordsToTensorMediumUrl = 'https://medium.com/@ankithreddy653/from-words-to-tensors-how-llms-actually-read-text-7048eef833ae'
-  const wordsToTensorVisualizerUrl = '/word-to-tensor.html'
+  const wordsToTensorVisualizerUrl = '/blogs/word-to-tensor/visualizer.html'
 
   return (
     <section className="blogs section" id="blogs">
