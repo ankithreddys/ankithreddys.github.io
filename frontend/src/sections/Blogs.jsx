@@ -7,6 +7,7 @@
 import './Blogs.css'
 
 function Blogs() {
+  const embeddingModelMediumUrl = 'https://medium.com/@ankithreddy653/from-raw-text-to-the-unit-hypersphere-building-and-visualizing-a-modern-text-embedding-model-from-f239b0c9ed86?sharedUserId=ankithreddy653'
   const embeddingModelVisualizerUrl = '/blogs/embedding-model-training/visualizer.html'
   const bpeMediumUrl = 'https://medium.com/@ankithreddy653/how-machines-learn-to-read-byte-pair-encoding-explained-ba4bd39c60ee'
   const bpeVisualizerUrl = '/blogs/bpe/visualizer.html'
@@ -29,7 +30,7 @@ function Blogs() {
         <div className="blogs-list" aria-label="Blogs list">
           <article className="blogs-card">
             <header className="blog-post-header">
-              <p className="blog-post-meta">New article · Interactive 3D visualizer</p>
+              <p className="blog-post-meta"><time dateTime="2026-11-01">November 1, 2026</time></p>
               <h3 className="blog-post-title">From Raw Text to the Unit Hypersphere: Building and Visualizing a Modern Text Embedding Model from Scratch</h3>
               <p className="blog-post-excerpt">
                 How does a text embedding model learn without a target vector? Follow raw text
@@ -39,11 +40,20 @@ function Blogs() {
               <div className="blog-post-tags" aria-label="Post tags">
                 <span className="blog-tag">Text Embeddings</span>
                 <span className="blog-tag">Contrastive Learning</span>
-                <span className="blog-tag">Interactive 3D</span>
+                <span className="blog-tag">NLP</span>
               </div>
             </header>
 
             <div className="blog-actions">
+              <a
+                href={embeddingModelMediumUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="blog-action-link"
+                aria-label="Open From Raw Text to the Unit Hypersphere blog post on Medium"
+              >
+                Read on Medium
+              </a>
               <a
                 href={embeddingModelVisualizerUrl}
                 target="_blank"
