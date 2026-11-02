@@ -38,6 +38,9 @@ function Footer() {
           <p className="footer-built">
             Built with <span className="heart">❤️</span> and React
           </p>
+          <p className="footer-ai-note">
+            <strong>AI use note.</strong> I used AI tools to help design, write, and build parts of this website, including interactive visualizations. I reviewed and refined the final work.
+          </p>
         </div>
       </div>
       <div className="container footer-formula-row">

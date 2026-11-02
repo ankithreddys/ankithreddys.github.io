@@ -100,6 +100,19 @@
   color: var(--text-muted);
 }
 
+.footer-ai-note {
+  max-width: 390px;
+  margin: 14px 0 0 auto;
+  color: #afc0d7;
+  font-size: 0.78rem;
+  line-height: 1.6;
+}
+
+.footer-ai-note strong {
+  color: #f5f8fc;
+  font-weight: 600;
+}
+
 .heart {
   display: inline-block;
   animation: heartbeat 1.5s infinite;
@@ -128,6 +141,10 @@
   .footer-right {
     order: 2;
     text-align: center;
+  }
+
+  .footer-ai-note {
+    margin-inline: auto;
   }
 
   .footer-nav {
