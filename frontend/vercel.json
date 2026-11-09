@@ -1,4 +1,8 @@
 {
+  "framework": null,
+  "buildCommand": "echo Redirect-only deployment",
+  "installCommand": "",
+  "outputDirectory": "vercel-redirect-only",
   "redirects": [
     { "source": "/bpe-visualizer.html", "destination": "https://ankithreddys.github.io/portfolio/blogs/bpe/visualizer.html", "permanent": true },
     { "source": "/word-to-tensor.html", "destination": "https://ankithreddys.github.io/portfolio/blogs/word-to-tensor/visualizer.html", "permanent": true },
