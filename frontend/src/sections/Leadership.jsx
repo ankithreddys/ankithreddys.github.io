@@ -1,4 +1,5 @@
 import './Leadership.css'
+import { siteUrl } from '../siteUrl'
 
 function Leadership() {
   const experiences = [
@@ -29,7 +30,7 @@ function Leadership() {
         'Presented “The ML Edge” to approximately 500 attendees, introducing supervised, unsupervised, and reinforcement learning.',
         'Explained why evaluating AI models matters alongside building them, with a focus on AI ethics and justice.',
       ],
-      filePath: '/documents/VBIT%20LOA.pdf',
+      filePath: siteUrl('documents/VBIT%20LOA.pdf'),
     },
   ]
 

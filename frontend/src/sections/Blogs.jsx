@@ -5,14 +5,15 @@
 */
 
 import './Blogs.css'
+import { siteUrl } from '../siteUrl'
 
 function Blogs() {
   const embeddingModelMediumUrl = 'https://medium.com/@ankithreddy653/from-raw-text-to-the-unit-hypersphere-building-and-visualizing-a-modern-text-embedding-model-from-f239b0c9ed86?sharedUserId=ankithreddy653'
-  const embeddingModelVisualizerUrl = '/blogs/embedding-model-training/visualizer.html'
+  const embeddingModelVisualizerUrl = siteUrl('blogs/embedding-model-training/visualizer.html')
   const bpeMediumUrl = 'https://medium.com/@ankithreddy653/how-machines-learn-to-read-byte-pair-encoding-explained-ba4bd39c60ee'
-  const bpeVisualizerUrl = '/blogs/bpe/visualizer.html'
+  const bpeVisualizerUrl = siteUrl('blogs/bpe/visualizer.html')
   const wordsToTensorMediumUrl = 'https://medium.com/@ankithreddy653/from-words-to-tensors-how-llms-actually-read-text-7048eef833ae'
-  const wordsToTensorVisualizerUrl = '/blogs/word-to-tensor/visualizer.html'
+  const wordsToTensorVisualizerUrl = siteUrl('blogs/word-to-tensor/visualizer.html')
 
   return (
     <section className="blogs section" id="blogs">

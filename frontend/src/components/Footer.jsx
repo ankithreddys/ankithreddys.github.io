@@ -5,6 +5,7 @@
 */
 
 import BrandMark from './BrandMark'
+import { siteUrl } from '../siteUrl'
 import './Footer.css'
 
 function Footer() {
@@ -14,7 +15,7 @@ function Footer() {
     <footer className="footer">
       <div className="container footer-container">
         <div className="footer-left">
-          <a href="#" className="footer-logo" aria-label="Ankith Reddy Subhanpuram">
+          <a href={siteUrl()} className="footer-logo" aria-label="Ankith Reddy Subhanpuram">
             <BrandMark />
           </a>
           <p className="footer-tagline">
@@ -24,10 +25,10 @@ function Footer() {
 
         <div className="footer-center">
           <nav className="footer-nav">
-            <a href="#about">About</a>
-            <a href="#projects">Projects</a>
-            <a href="#skills">Skills</a>
-            <a href="#contact">Contact</a>
+            <a href={siteUrl('#about')}>About</a>
+            <a href={siteUrl('#projects')}>Projects</a>
+            <a href={siteUrl('#skills')}>Skills</a>
+            <a href={siteUrl('#contact')}>Contact</a>
           </nav>
         </div>
 

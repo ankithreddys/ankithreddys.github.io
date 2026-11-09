@@ -21,6 +21,7 @@
 
 import { useState, useEffect } from 'react'
 import BrandMark from './BrandMark'
+import { siteUrl } from '../siteUrl'
 import './Navbar.css'
 
 function Navbar({ theme, onToggleTheme }) {
@@ -62,12 +63,12 @@ function Navbar({ theme, onToggleTheme }) {
 
   // Navigation links - we'll map over this array to create the nav items
   const navLinks = [
-    { name: 'About', href: '/#about' },
-    { name: 'Projects', href: '/#projects' },
-    { name: 'Skills', href: '/#skills' },
-    { name: 'Leadership', href: '/#leadership' },
-    { name: 'Contact', href: '/#contact' },
-    { name: 'Research CV', href: '/documents/RESEARCH_CV.pdf' },
+    { name: 'About', href: siteUrl('#about') },
+    { name: 'Projects', href: siteUrl('#projects') },
+    { name: 'Skills', href: siteUrl('#skills') },
+    { name: 'Leadership', href: siteUrl('#leadership') },
+    { name: 'Contact', href: siteUrl('#contact') },
+    { name: 'Research CV', href: siteUrl('documents/RESEARCH_CV.pdf') },
   ]
 
   return (
@@ -80,7 +81,7 @@ function Navbar({ theme, onToggleTheme }) {
     <nav className={`navbar ${isScrolled ? 'scrolled' : ''}`}>
       <div className="navbar-container">
         {/* Logo */}
-        <a href="/" className="navbar-logo" aria-label="Ankith Reddy Subhanpuram">
+        <a href={siteUrl()} className="navbar-logo" aria-label="Ankith Reddy Subhanpuram">
           <BrandMark />
         </a>
 
@@ -112,7 +113,7 @@ function Navbar({ theme, onToggleTheme }) {
             <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
           </button>
 
-          <a href="/blogs" className="btn btn-primary navbar-cta">
+          <a href={siteUrl('blogs')} className="btn btn-primary navbar-cta">
             Blogs
           </a>
 
