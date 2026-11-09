@@ -37,7 +37,6 @@ jobs:
         run: |
           cp frontend/dist/index.html frontend/dist/404.html
           cp frontend/dist/index.html frontend/dist/blogs/index.html
-          node frontend/scripts/create-legacy-pages.mjs
           touch frontend/dist/.nojekyll
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
