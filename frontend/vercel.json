@@ -5,13 +5,13 @@
   "outputDirectory": "vercel-redirect-only",
   "git": { "deploymentEnabled": false },
   "redirects": [
-    { "source": "/bpe-visualizer.html", "destination": "https://ankithreddys.github.io/portfolio/blogs/bpe/visualizer.html", "permanent": true },
-    { "source": "/word-to-tensor.html", "destination": "https://ankithreddys.github.io/portfolio/blogs/word-to-tensor/visualizer.html", "permanent": true },
-    { "source": "/RESEARCH_CV.pdf", "destination": "https://ankithreddys.github.io/portfolio/documents/RESEARCH_CV.pdf", "permanent": true },
-    { "source": "/VBIT%20LOA.pdf", "destination": "https://ankithreddys.github.io/portfolio/documents/VBIT%20LOA.pdf", "permanent": true },
-    { "source": "/ANKITH%20SUBHANPURAM.pdf", "destination": "https://ankithreddys.github.io/portfolio/documents/ANKITH%20SUBHANPURAM.pdf", "permanent": true },
-    { "source": "/vite.svg", "destination": "https://ankithreddys.github.io/portfolio/assets/vite.svg", "permanent": true },
-    { "source": "/", "destination": "https://ankithreddys.github.io/portfolio/", "permanent": true },
-    { "source": "/:path*", "destination": "https://ankithreddys.github.io/portfolio/:path*", "permanent": true }
+    { "source": "/bpe-visualizer.html", "destination": "https://ankithreddys.github.io/blogs/bpe/visualizer.html", "permanent": true },
+    { "source": "/word-to-tensor.html", "destination": "https://ankithreddys.github.io/blogs/word-to-tensor/visualizer.html", "permanent": true },
+    { "source": "/RESEARCH_CV.pdf", "destination": "https://ankithreddys.github.io/documents/RESEARCH_CV.pdf", "permanent": true },
+    { "source": "/VBIT%20LOA.pdf", "destination": "https://ankithreddys.github.io/documents/VBIT%20LOA.pdf", "permanent": true },
+    { "source": "/ANKITH%20SUBHANPURAM.pdf", "destination": "https://ankithreddys.github.io/documents/ANKITH%20SUBHANPURAM.pdf", "permanent": true },
+    { "source": "/vite.svg", "destination": "https://ankithreddys.github.io/assets/vite.svg", "permanent": true },
+    { "source": "/", "destination": "https://ankithreddys.github.io/", "permanent": true },
+    { "source": "/:path*", "destination": "https://ankithreddys.github.io/:path*", "permanent": true }
   ]
 }

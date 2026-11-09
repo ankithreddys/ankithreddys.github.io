@@ -14,7 +14,7 @@ A static React + Vite portfolio website showcasing Ankith's experience, projects
 - CV and supporting PDFs: `frontend/public/documents/`
 - Shared static assets: `frontend/public/assets/`
 
-The portfolio is published at `https://ankithreddys.github.io/portfolio/`. GitHub Actions deploys the frontend from `main`. The old Vercel domain redirects visitors to the corresponding GitHub Pages URL, including previous root-level visualizer and document links. Vercel's deployment output is limited to `frontend/vercel-redirect-only/`, and automatic Git deployments are disabled in `frontend/vercel.json`.
+The portfolio is published at `https://ankithreddys.github.io/`. GitHub Actions deploys the frontend from `main`. The previous `/portfolio/` URLs redirect to the root site, and the old Vercel domain redirects visitors to the corresponding GitHub Pages URL. Vercel's deployment output is limited to `frontend/vercel-redirect-only/`, and automatic Git deployments are disabled in `frontend/vercel.json`.
 
 ## Tech Stack
 
