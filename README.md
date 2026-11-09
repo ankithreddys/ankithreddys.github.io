@@ -14,14 +14,14 @@ A static React + Vite portfolio website showcasing Ankith's experience, projects
 - CV and supporting PDFs: `frontend/public/documents/`
 - Shared static assets: `frontend/public/assets/`
 
-The portfolio links to the new URLs. Previous root-level URLs redirect to the new locations on Vercel.
+The portfolio is published at `https://ankithreddys.github.io/portfolio/`. GitHub Actions deploys the frontend from `main`. The old Vercel domain redirects visitors to the corresponding GitHub Pages URL, including previous root-level visualizer and document links.
 
 ## Tech Stack
 
 - React
 - Vite
 - React Router
-- Vercel static hosting
+- GitHub Pages hosting
 
 ## Local Development
 

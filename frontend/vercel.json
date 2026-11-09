@@ -1,13 +1,12 @@
 {
   "redirects": [
-    { "source": "/bpe-visualizer.html", "destination": "/blogs/bpe/visualizer.html", "permanent": true },
-    { "source": "/word-to-tensor.html", "destination": "/blogs/word-to-tensor/visualizer.html", "permanent": true },
-    { "source": "/RESEARCH_CV.pdf", "destination": "/documents/RESEARCH_CV.pdf", "permanent": true },
-    { "source": "/VBIT%20LOA.pdf", "destination": "/documents/VBIT%20LOA.pdf", "permanent": true },
-    { "source": "/ANKITH%20SUBHANPURAM.pdf", "destination": "/documents/ANKITH%20SUBHANPURAM.pdf", "permanent": true },
-    { "source": "/vite.svg", "destination": "/assets/vite.svg", "permanent": true }
-  ],
-  "rewrites": [
-    { "source": "/((?!.*\\.).*)", "destination": "/" }
+    { "source": "/bpe-visualizer.html", "destination": "https://ankithreddys.github.io/portfolio/blogs/bpe/visualizer.html", "permanent": true },
+    { "source": "/word-to-tensor.html", "destination": "https://ankithreddys.github.io/portfolio/blogs/word-to-tensor/visualizer.html", "permanent": true },
+    { "source": "/RESEARCH_CV.pdf", "destination": "https://ankithreddys.github.io/portfolio/documents/RESEARCH_CV.pdf", "permanent": true },
+    { "source": "/VBIT%20LOA.pdf", "destination": "https://ankithreddys.github.io/portfolio/documents/VBIT%20LOA.pdf", "permanent": true },
+    { "source": "/ANKITH%20SUBHANPURAM.pdf", "destination": "https://ankithreddys.github.io/portfolio/documents/ANKITH%20SUBHANPURAM.pdf", "permanent": true },
+    { "source": "/vite.svg", "destination": "https://ankithreddys.github.io/portfolio/assets/vite.svg", "permanent": true },
+    { "source": "/", "destination": "https://ankithreddys.github.io/portfolio/", "permanent": true },
+    { "source": "/:path*", "destination": "https://ankithreddys.github.io/portfolio/:path*", "permanent": true }
   ]
 }
